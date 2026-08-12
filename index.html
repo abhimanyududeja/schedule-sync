@@ -250,7 +250,7 @@
     <span><i class="sw b"></i><b id="lgB">Her</b></span>
     <span><i class="sw f"></i>Both free</span>
     <span style="color:var(--faint)">dashed border = repeats every week</span>
-    <span style="margin-left:auto;color:var(--faint)">Click any block to delete it</span>
+    <span style="margin-left:auto;color:var(--faint)">Click a block to edit it · drag to move · drag its edges to resize</span>
   </div>
 
   <div class="card gridwrap"><div class="grid" id="grid"></div></div>
@@ -922,6 +922,70 @@ function renderWeekBar(){
   const n = weekEvents(VIEW).length, once = S.events.filter(e => e.week === VIEW).length;
   $("#wkCount").textContent = `${n} block${n===1?"":"s"} · ${once} just this week`;
 }
+/* ---- edit a block after the fact ---- */
+function openEdit(e){
+  const wrap = el("div","modal");
+  wrap.innerHTML = `<div class="sheet">
+    <h3>Edit this block</h3>
+    <p class="sub">Change what it's called, when it is, or whose it is.</p>
+    <div class="row" style="margin-bottom:12px">
+      <div class="f"><label>Whose</label><select class="eWho">
+        <option value="a">${escapeHTML(nameOf("a"))}</option>
+        <option value="b">${escapeHTML(nameOf("b"))}</option></select></div>
+      <div class="f"><label>Where</label><select class="eKind"></select></div>
+      <div class="f" style="flex:1;min-width:200px"><label>What it's called</label>
+        <input class="eTitle" placeholder="e.g. front desk"></div>
+    </div>
+    <div class="row" style="margin-bottom:14px">
+      <div class="f"><label>Day</label><select class="eDay">
+        ${DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join("")}</select></div>
+      <div class="f"><label>Start</label><input class="eStart" type="time"></div>
+      <div class="f"><label>End</label><input class="eEnd" type="time"></div>
+      <div class="f"><label>Repeats</label><select class="eRep">
+        <option value="once">Just this week</option>
+        <option value="every">Every week</option></select></div>
+    </div>
+    <div class="row">
+      <button class="btn eSave">Save changes</button>
+      <button class="btn ghost eCancel">Cancel</button>
+      <button class="btn danger eDel" style="margin-left:auto">Delete this block</button>
+    </div></div>`;
+  document.body.appendChild(wrap);
+
+  const q = c => wrap.querySelector("." + c);
+  q("eWho").value = e.person;
+  fillPlaces(q("eKind"), e.person);
+  q("eKind").value = e.kind;
+  q("eTitle").value = e.title;
+  q("eDay").value = e.day;
+  q("eStart").value = toHHMM(e.start);
+  q("eEnd").value = toHHMM(e.end);
+  q("eRep").value = e.week === null ? "every" : "once";
+  q("eWho").onchange = () => fillPlaces(q("eKind"), q("eWho").value);
+  setTimeout(() => q("eTitle").focus(), 30);
+
+  const close = () => wrap.remove();
+  q("eCancel").onclick = close;
+  wrap.onclick = ev => { if(ev.target === wrap) close(); };
+  q("eDel").onclick = () => {
+    if(e.week === null && !confirm(`"${e.title}" repeats every week.\n\nOK = delete it from every week.`)) return;
+    close(); del(e.id);
+  };
+  q("eSave").onclick = () => {
+    const s = toMin(q("eStart").value), en = toMin(q("eEnd").value);
+    if(!(en > s)) return alert("The end time has to be after the start time.");
+    const place = q("eKind").value;
+    e.person = q("eWho").value;
+    e.kind   = place;
+    e.title  = q("eTitle").value.trim() || placeName(place);
+    e.day    = +q("eDay").value;
+    e.start  = s; e.end = en;
+    e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
+    touch(e);
+    close(); renderAll(); syncSoon();
+  };
+}
+
 /* ---- drag to move, drag the grips to resize. Snaps to 15 minutes. ---- */
 const SNAP = 15;
 let dragMoved = false;
@@ -1038,13 +1102,11 @@ function renderGrid(){
       n.appendChild(el("i","grip bot"));
       n.dataset.id = e.id;
       n.title = `${nameOf(e.person)} · ${placeName(e.kind)} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
-                (e.week === null ? "\nRepeats every week" : "\nJust this week") + "\nClick to delete";
+                (e.week === null ? "\nRepeats every week" : "\nJust this week") + "\nClick to edit";
       n.onclick = ev => {
         if(dragMoved) return;                       // finished a drag, not a click
         if(ev.target.classList.contains("grip")) return;
-        if(e.week === null){
-          if(confirm(`"${e.title}" repeats every week.\n\nOK = delete it from every week.\nCancel = keep it.`)) del(e.id);
-        }else if(confirm(`Delete "${e.title}" on ${DAYS[d]}?`)) del(e.id);
+        openEdit(e);
       };
       n.addEventListener("pointerdown", ev => startDrag(ev, e, lo));
       col.appendChild(n);
@@ -1115,7 +1177,12 @@ function renderTable(){
       `<td><span class="tag" style="color:${placeColor(e.kind)};border-color:${placeColor(e.kind)}55">${escapeHTML(placeName(e.kind))}</span></td>` +
       `<td>${when}</td><td>${DAYS[e.day]}</td>` +
       `<td style="font-variant-numeric:tabular-nums">${fmt(e.start)} – ${fmt(e.end)}</td><td>${dur(e.end-e.start)}</td>`;
-    const td = el("td"), x = el("button","x","✕"); x.onclick = () => del(e.id); td.appendChild(x); tr.appendChild(td);
+    const td = el("td");
+    const ed = el("button","x","✎"); ed.title = "Edit"; ed.onclick = () => openEdit(e);
+    const x  = el("button","x","✕"); x.title = "Delete"; x.onclick = () => del(e.id);
+    td.appendChild(ed); td.appendChild(x); tr.appendChild(td);
+    tr.style.cursor = "pointer";
+    tr.onclick = ev => { if(!ev.target.closest("button")) openEdit(e); };
     tb.appendChild(tr);
   }
 }
