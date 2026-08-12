@@ -368,10 +368,10 @@
     </p>
     <div class="row">
       <div class="f" style="flex:1;min-width:260px"><label>Project URL</label>
-        <input id="syncUrl" placeholder="https://xxxxxxxx.supabase.co"></div>
+        <input id="syncUrl" autocomplete="off" placeholder="https://xxxxxxxx.supabase.co"></div>
       <div class="f" style="flex:1;min-width:260px"><label>Anon / public key</label>
-        <input id="syncKey" type="password" placeholder="eyJhbGci..."></div>
-      <div class="f"><label>Room code</label><input id="syncRoom" placeholder="abhi-and-sam-9f3k"></div>
+        <input id="syncKey" type="password" autocomplete="new-password" placeholder="eyJhbGci... or sb_publishable_..."></div>
+      <div class="f"><label>Room code</label><input id="syncRoom" autocomplete="off" placeholder="abhi-and-kashish-..."></div>
       <button class="btn" id="syncSave">Connect</button>
       <button class="btn ghost" id="syncOff">Turn off</button>
     </div>
@@ -1503,6 +1503,7 @@ $("#clrAll").onclick = () => { if(confirm("Delete everything and start over?")){
 $$("nav.tabs button").forEach(b => b.onclick = () => {
   $$("nav.tabs button").forEach(x => x.classList.remove("on")); b.classList.add("on");
   $$(".view").forEach(v => v.classList.remove("on")); $("#v-" + b.dataset.v).classList.add("on");
+  if(b.dataset.v === "settings") fillSyncFields();
 });
 DAYS.forEach((d,i) => {
   const b = el("button","",DAYBTN[i]);
@@ -1528,7 +1529,14 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---- sync controls ---- */
-$("#syncUrl").value = SYNC.url; $("#syncKey").value = SYNC.key; $("#syncRoom").value = SYNC.room;
+/* Chrome restores form state after our script runs and can blank these, which
+   makes a working connection look forgotten. Re-fill on load and on tab open. */
+function fillSyncFields(){
+  $("#syncUrl").value = SYNC.url || "";
+  $("#syncKey").value = SYNC.key || "";
+  $("#syncRoom").value = SYNC.room || "";
+}
+fillSyncFields();
 $("#syncSave").onclick = async () => {
   const url = $("#syncUrl").value.trim(), key = $("#syncKey").value.trim(), room = $("#syncRoom").value.trim();
   const m = $("#syncMsg");
@@ -1556,6 +1564,7 @@ load(); paintShots(); renderAll();
 if(PENDING) askImport(PENDING.data, PENDING.from);   // ask only once the app is on screen
 syncStatus(SYNC.on ? "connecting…" : "off");
 syncStart();
+setTimeout(fillSyncFields, 300);   // after any late form restoration
 document.addEventListener("visibilitychange", () => { if(!document.hidden) syncNow(true); });
 </script>
 </body>
