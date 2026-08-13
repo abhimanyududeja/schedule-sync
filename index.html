@@ -6,12 +6,31 @@
 <title>Schedule Sync — find our free time</title>
 <style>
   :root{
+    color-scheme:dark;
     --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2a2f3f;
-    --text:#e7e9ee; --dim:#9aa3b5; --faint:#6b7488;
-    --a:#6d8cff; --a-soft:#6d8cff33; --a-line:#6d8cff88;
-    --b:#ff77b0; --b-soft:#ff77b033; --b-line:#ff77b088;
+    --text:#e7e9ee; --dim:#9aa3b5; --faint:#7f8899;
+    --a:#6d8cff; --a-soft:#6d8cff33; --a-line:#6d8cff88; --a-text:#cdd8ff; --a-wash:#6d8cff0e;
+    --b:#ff77b0; --b-soft:#ff77b033; --b-line:#ff77b088; --b-text:#ffd2e6;
     --free:#3ddc97; --free-soft:#3ddc9722; --free-line:#3ddc9766;
-    --warn:#ffb45c; --r:10px;
+    --warn:#ffb45c; --err:#ff9aa8;
+    --danger-bg:#3a1f27; --danger-fg:#ff9aa8; --danger-line:#5a2b36;
+    --hover:#ffffff0d; --hover2:#ffffff14;
+    --shadow:0 6px 18px #0009; --shadow-lg:0 20px 60px #000;
+    --r:10px;
+  }
+  /* Light theme. The person colours are darkened so their text stays legible
+     on a pale fill, and the washes are made opaque enough to read as tints. */
+  [data-theme="light"]{
+    color-scheme:light;
+    --bg:#f4f6fa; --panel:#ffffff; --panel2:#eef1f7; --line:#dde2ec;
+    --text:#161a23; --dim:#525b6b; --faint:#666f80;
+    --a:#3b5bdb; --a-soft:#3b5bdb1f; --a-line:#3b5bdb7a; --a-text:#22348f; --a-wash:#3b5bdb0a;
+    --b:#d6336c; --b-soft:#d6336c1c; --b-line:#d6336c73; --b-text:#8f1d45;
+    --free:#0a7350; --free-soft:#0ca6781f; --free-line:#0ca67877;
+    --warn:#c2570a; --err:#c92a4a;
+    --danger-bg:#fdeaee; --danger-fg:#b02a41; --danger-line:#f2c2cc;
+    --hover:#0000000a; --hover2:#00000012;
+    --shadow:0 4px 14px #0f172a1f; --shadow-lg:0 18px 50px #0f172a2e;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -21,7 +40,7 @@
   button{cursor:pointer}
 
   /* One sticky unit, so the tabs never scroll out of reach whatever wraps. */
-  .topbar{position:sticky;top:0;z-index:60;background:var(--bg);box-shadow:0 6px 18px #0009}
+  .topbar{position:sticky;top:0;z-index:60;background:var(--bg);box-shadow:var(--shadow)}
   header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 20px;
     border-bottom:1px solid var(--line);background:var(--panel)}
   .brand{font-weight:650;letter-spacing:-.2px;font-size:15px}
@@ -39,14 +58,14 @@
   .nav:hover{background:#ffffff12;color:var(--text)}
   .wklabel{font-weight:620;min-width:210px}
   .wklabel small{display:block;font-weight:400;color:var(--faint);font-size:11.5px}
-  .wkchip{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--a-soft);color:#b9c8ff;border:1px solid var(--a-line)}
+  .wkchip{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--a-soft);color:var(--a-text);border:1px solid var(--a-line)}
   .wkchip.ok,.tag.ok{background:var(--free-soft);color:var(--free);border-color:var(--free-line)}
   .wkchip.bad,.tag.bad{background:#ffb45c1a;color:var(--warn);border-color:#ffb45c66}
 
   nav.tabs{display:flex;gap:4px;padding:12px 20px 0;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
   nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;
     color:var(--dim);font-weight:520;border-radius:6px 6px 0 0}
-  nav.tabs button:hover{color:var(--text);background:#ffffff08}
+  nav.tabs button:hover{color:var(--text);background:var(--hover)}
   nav.tabs button.on{color:var(--text);border-bottom-color:var(--a)}
 
   main{padding:20px;max-width:1500px;margin:0 auto}
@@ -63,8 +82,8 @@
   .btn:hover{filter:brightness(1.08)}
   .btn:disabled{opacity:.5;cursor:default;filter:none}
   .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-weight:500}
-  .btn.ghost:hover{background:#ffffff10}
-  .btn.danger{background:#3a1f27;color:#ff9aa8;border:1px solid #5a2b36}
+  .btn.ghost:hover{background:var(--hover2)}
+  .btn.danger{background:var(--danger-bg);color:var(--danger-fg);border:1px solid var(--danger-line)}
   .btn.go{background:var(--free);color:#08110d}
 
   .days{display:flex;gap:4px}
@@ -75,7 +94,7 @@
   .gridwrap{overflow-x:auto;padding-bottom:6px}
   .grid{display:grid;grid-template-columns:56px repeat(7,minmax(120px,1fr));gap:6px;min-width:940px}
   .colhead{text-align:center;font-size:12px;font-weight:600;color:var(--dim);padding:6px 0;border-radius:6px}
-  .colhead.today{background:var(--a-soft);color:#cdd8ff}
+  .colhead.today{background:var(--a-soft);color:var(--a-text)}
   .colhead b{font-weight:600}
   .colhead small{display:block;font-weight:400;color:var(--free);font-size:11px}
   .gutter{position:relative}
@@ -95,8 +114,8 @@
   .grip.top{top:-1px} .grip.bot{bottom:-1px}
   .ev:hover .grip{opacity:1;background:linear-gradient(currentColor,transparent);height:6px}
   .ev:hover .grip.bot{background:linear-gradient(transparent,currentColor)}
-  .ev.a{background:var(--a-soft);border-color:var(--a-line);color:#cdd8ff}
-  .ev.b{background:var(--b-soft);border-color:var(--b-line);color:#ffd2e6}
+  .ev.a{background:var(--a-soft);border-color:var(--a-line);color:var(--a-text)}
+  .ev.b{background:var(--b-soft);border-color:var(--b-line);color:var(--b-text)}
   .ev.rep{border-style:dashed}
   .ev strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ev em{font-style:normal;color:var(--faint);font-size:10px;display:block}
@@ -187,19 +206,19 @@
   th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
     padding:6px 8px;border-bottom:1px solid var(--line)}
   td{padding:6px 8px;border-bottom:1px solid var(--line)}
-  tr:hover td{background:#ffffff06}
+  tr:hover td{background:var(--hover)}
   .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px}
   .tag{font-size:10.5px;padding:2px 7px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
-  .tag.rep{border-color:var(--a-line);color:#b9c8ff}
+  .tag.rep{border-color:var(--a-line);color:var(--a-text)}
   .x{background:none;border:0;color:var(--faint);padding:2px 6px;border-radius:5px}
-  .x:hover{background:#ff6b8130;color:#ff9aa8}
+  .x:hover{background:var(--danger-bg);color:var(--danger-fg)}
 
   textarea{width:100%;min-height:170px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
     padding:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;resize:vertical}
   .hint{color:var(--faint);font-size:12px;line-height:1.6}
   .hint code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--dim)}
   .msg{margin-top:10px;font-size:12.5px;color:var(--free)}
-  .msg.err{color:#ff9aa8} .msg.warn{color:var(--warn)}
+  .msg.err{color:var(--err)} .msg.warn{color:var(--warn)}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin-bottom:12px;align-items:center}
   .sw{width:22px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px;border:1px solid}
   .sw.a{background:var(--a-soft);border-color:var(--a-line)}
@@ -219,7 +238,7 @@
   .bar i{display:block;height:100%;background:var(--a);width:0;transition:width .2s}
 
   /* review */
-  .review{border:1px solid var(--a-line);background:#6d8cff0e;border-radius:var(--r);padding:16px;margin-top:16px}
+  .review{border:1px solid var(--a-line);background:var(--a-wash);border-radius:var(--r);padding:16px;margin-top:16px}
   .review h3{margin:0 0 4px;font-size:15px}
   .review p.sub{margin:0 0 14px;color:var(--dim);font-size:12.5px}
   .askwho{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -234,7 +253,7 @@
   .modal{position:fixed;inset:0;background:#000000cc;display:flex;align-items:center;
     justify-content:center;z-index:200;padding:20px}
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;
-    max-width:580px;width:100%;box-shadow:0 20px 60px #000}
+    max-width:580px;width:100%;box-shadow:var(--shadow-lg)}
   .sheet h3{margin:0 0 6px;font-size:17px}
   .sheet p.sub{margin:0 0 16px;color:var(--dim);font-size:13px;line-height:1.5}
   .sum{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
@@ -258,6 +277,7 @@
   <div class="who">
     <span class="dot a"></span><input id="nameA" maxlength="24" placeholder="Abhi">
     <span class="dot b"></span><input id="nameB" maxlength="24" placeholder="Kashish">
+    <button class="nav" id="themeBtn" title="Theme">◐</button>
   </div>
 </header>
 
@@ -481,9 +501,14 @@ const PLACES = {
   b: [["rso","RSO"], ["library","Library"], ["saxbys","Saxbys"], ["other","Other"]]
 };
 const PLACE_LABEL = {store:"Store", rso:"RSO", library:"Library", saxbys:"Saxbys", other:"Other"};
+/* Place colours need a second set for light mode — the pale ones vanish on white. */
 const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"#3ddc97", other:"#8b93a7"};
+const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", other:"#475569"};
 const placeName = k => PLACE_LABEL[k] || (k ? k[0].toUpperCase() + k.slice(1) : "Other");
-const placeColor = k => PLACE_COLOR[k] || PLACE_COLOR.other;
+const placeColor = k => {
+  const m = document.documentElement.dataset.theme === "light" ? PLACE_COLOR_LIGHT : PLACE_COLOR;
+  return m[k] || m.other;
+};
 function fillPlaces(sel, person){
   const keep = sel.value;
   sel.innerHTML = "";
@@ -1125,7 +1150,8 @@ function laneLayout(evs, out){
   return out;
 }
 /* On a phone seven columns are unreadable, so show one day at a time. */
-const isPhone = () => window.innerWidth < 768;
+// same query the stylesheet uses, so the layout and the renderer can never disagree
+const isPhone = () => window.matchMedia("(max-width:768px)").matches;
 let DAYSEL = new Date().getDay();
 const freeMins = d => freeTogether(d).filter(s => s[1]-s[0] >= 30).reduce((x,s) => x + s[1]-s[0], 0);
 
@@ -1690,6 +1716,29 @@ $("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
 $("#minGap").onchange = renderFree;
 $("#freeMode").onchange = renderFree;
 $("#scope").onchange = renderTable;
+/* ---- theme: auto (follow the OS) → light → dark → auto ---- */
+const TKEY = "schedsync-theme";
+let THEME = "auto";
+try{ THEME = localStorage.getItem(TKEY) || "auto"; }catch(e){}
+const prefersLight = () => window.matchMedia("(prefers-color-scheme: light)").matches;
+function applyTheme(){
+  const eff = THEME === "auto" ? (prefersLight() ? "light" : "dark") : THEME;
+  document.documentElement.dataset.theme = eff;
+  const btn = $("#themeBtn");
+  btn.textContent = THEME === "auto" ? "◐" : eff === "light" ? "☀" : "☾";
+  btn.title = THEME === "auto" ? "Theme: follows your Mac (tap for light)"
+            : THEME === "light" ? "Theme: light (tap for dark)"
+            : "Theme: dark (tap to follow your Mac)";
+}
+$("#themeBtn").onclick = () => {
+  THEME = THEME === "auto" ? "light" : THEME === "light" ? "dark" : "auto";
+  try{ localStorage.setItem(TKEY, THEME); }catch(e){}
+  applyTheme(); renderAll();          // block colours are inline, so repaint them
+};
+window.matchMedia("(prefers-color-scheme: light)")
+      .addEventListener("change", () => { if(THEME === "auto") applyTheme(); });
+applyTheme();
+
 /* rotating the phone or resizing flips between the one-day and seven-day layout */
 let rzT = null, wasPhone = isPhone();
 window.addEventListener("resize", () => {
