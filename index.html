@@ -115,6 +115,68 @@
   .slot.busy{background:#ffb45c1a;border-color:#ffb45c55}
   .slot span{color:var(--dim);font-variant-numeric:tabular-nums}
   .none{color:var(--faint);font-size:12px;font-style:italic}
+
+  /* one-day picker, phone only */
+  .daystrip{display:none;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;scrollbar-width:none}
+  .daystrip::-webkit-scrollbar{display:none}
+  .daystrip button{flex:1;min-width:60px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:8px 5px;color:var(--dim);line-height:1.3}
+  .daystrip button b{display:block;font-size:13px;color:var(--text);font-weight:600}
+  .daystrip button small{font-size:10px;color:var(--free)}
+  .daystrip button.on{border-color:var(--a);background:var(--a-soft)}
+  .daystrip button.today b{color:var(--a)}
+
+  .addcard summary{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
+    font-weight:600;cursor:pointer;list-style:none;margin-bottom:12px}
+  .addcard summary::-webkit-details-marker{display:none}
+  .addcard summary::after{content:" ▾";color:var(--faint)}
+  .addcard:not([open]) summary{margin-bottom:0}
+  .wkacts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn .sm{display:none}
+
+  @media (max-width:768px){
+    main{padding:12px}
+    header{padding:10px 12px;gap:8px}
+    .brand{font-size:14px;width:100%} .brand span{display:none}
+    .who{margin-left:0;width:100%;gap:6px}
+    .who input{flex:1;min-width:0;width:auto;font-size:16px}
+    .weekbar{padding:8px 12px;gap:8px}
+    .wklabel{min-width:0;flex:1} .wklabel small{font-size:11px}
+    .weekbar .btn.ghost{padding:8px 10px;font-size:12px}
+    nav.tabs{padding:6px 12px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+    nav.tabs::-webkit-scrollbar{display:none}
+    nav.tabs button{white-space:nowrap;padding:10px 11px;font-size:13px}
+    .card{padding:12px}
+    .f{flex:1;min-width:calc(50% - 5px)}
+    .f input,.f select{width:100%;font-size:16px;padding:10px}   /* 16px stops iOS zooming on focus */
+    .days{width:100%} .days button{width:auto;flex:1;padding:11px 0}
+    .btn{padding:12px 14px}
+    .legend{font-size:11.5px;gap:8px 12px}
+    .legend .dragtip{display:none}          /* no dragging on a touch screen */
+    .btn .lg{display:none} .btn .sm{display:inline}
+    .wkacts{margin-left:0;gap:6px}
+    .wklabel{flex:1 1 auto;min-width:0;max-width:190px;white-space:nowrap;overflow:hidden;
+      text-overflow:ellipsis;font-size:13.5px}
+    .wklabel small{display:none}          /* the day chips already carry the dates */
+    /* row 1: arrows, week name, Today.  row 2: counters and actions. */
+    .weekbar .wkchip{font-size:10.5px;padding:3px 7px;order:5}
+    .weekbar .wkacts{order:6}
+    .legend span{white-space:nowrap}
+    .legend .sw{margin-right:4px}
+    .weekbar .nav{width:36px;height:36px}
+    .who input{font-size:15px;padding:8px}
+    .brand{margin-bottom:-2px}
+    .gridwrap{overflow-x:visible}
+    .grid{min-width:0;grid-template-columns:44px 1fr}
+    .daystrip{display:flex}
+    .stat{flex:1;min-width:calc(50% - 6px);padding:11px 12px}
+    .stat b{font-size:21px}
+    .daylist{grid-template-columns:1fr}
+    .modal{padding:0;align-items:flex-end}
+    .sheet{border-radius:14px 14px 0 0;padding:16px;max-height:92vh;overflow:auto}
+    .rvtable{overflow-x:auto}
+    .shot img{max-height:110px;max-width:150px}
+  }
   .note{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
     padding:11px 14px;margin-bottom:16px;font-size:12.5px;color:var(--dim)}
   .note.warn{border-color:#ffb45c66;background:#ffb45c12;color:var(--warn)}
@@ -206,9 +268,11 @@
   <button class="btn ghost" id="todayW">Today</button>
   <span class="wkchip" id="wkCount"></span>
   <span class="wkchip ok" id="syncChip" style="display:none">synced</span>
-  <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn ghost" id="copyPrev" title="Copy last week's one-off shifts into this week">⧉ Copy last week's shifts</button>
-    <button class="btn ghost" id="clrWeek">Clear this week's shifts</button>
+  <div class="wkacts">
+    <button class="btn ghost" id="copyPrev" title="Copy last week's one-off shifts into this week">
+      <span class="lg">⧉ Copy last week's shifts</span><span class="sm">⧉ Copy</span></button>
+    <button class="btn ghost" id="clrWeek">
+      <span class="lg">Clear this week's shifts</span><span class="sm">Clear</span></button>
   </div>
 </div>
 
@@ -226,8 +290,8 @@
 
 <!-- ============ WEEK ============ -->
 <section class="view on" id="v-week">
-  <div class="card">
-    <h2>Add a block</h2>
+  <details class="card addcard" id="addCard" open>
+    <summary>Add a block</summary>
     <div class="row">
       <div class="f"><label>Whose</label>
         <select id="fPerson"><option value="a">You</option><option value="b">Her</option></select></div>
@@ -243,16 +307,17 @@
       <div class="f"><label>End</label><input id="fEnd" type="time" value="10:30"></div>
       <button class="btn" id="addBtn">Add</button>
     </div>
-  </div>
+  </details>
 
   <div class="legend">
     <span><i class="sw a"></i><b id="lgA">You</b></span>
     <span><i class="sw b"></i><b id="lgB">Her</b></span>
     <span><i class="sw f"></i>Both free</span>
     <span style="color:var(--faint)">dashed border = repeats every week</span>
-    <span style="margin-left:auto;color:var(--faint)">Click a block to edit it · drag to move · drag its edges to resize</span>
+    <span class="dragtip" style="margin-left:auto;color:var(--faint)">Click a block to edit it · drag to move · drag its edges to resize</span>
   </div>
 
+  <div class="daystrip" id="daystrip"></div>
   <div class="card gridwrap"><div class="grid" id="grid"></div></div>
 </section>
 
@@ -773,9 +838,12 @@ function badWake(){
 const freeTogether = d => intersect(subtract(awake("a"), busyOf("a",d)), subtract(awake("b"), busyOf("b",d)));
 const busyTogether = d => intersect(busyOf("a",d), busyOf("b",d));
 
-function gridWindow(){
+/* Showing one day on a phone, fit the timeline to that day — otherwise a single
+   overnight shift somewhere in the week buries every other day under empty night. */
+function gridWindow(days){
   let lo = Math.min(toMin(S.wakeA), toMin(S.wakeB)), hi = Math.max(toMin(S.sleepA), toMin(S.sleepB));
-  for(const e of weekEvents(VIEW)){ lo = Math.min(lo, e.start); hi = Math.max(hi, e.end); }
+  const scope = days ? weekEvents(VIEW).filter(e => days.includes(e.day)) : weekEvents(VIEW);
+  for(const e of scope){ lo = Math.min(lo, e.start); hi = Math.max(hi, e.end); }
   return [Math.floor(lo/60)*60, Math.ceil(hi/60)*60];
 }
 
@@ -1056,25 +1124,48 @@ function laneLayout(evs, out){
   }
   return out;
 }
+/* On a phone seven columns are unreadable, so show one day at a time. */
+const isPhone = () => window.innerWidth < 768;
+let DAYSEL = new Date().getDay();
+const freeMins = d => freeTogether(d).filter(s => s[1]-s[0] >= 30).reduce((x,s) => x + s[1]-s[0], 0);
+
+function renderStrip(){
+  const strip = $("#daystrip"); strip.innerHTML = "";
+  const wkStart = parseISO(VIEW), today = isoOf(new Date());
+  DAYS.forEach((d,i) => {
+    const date = addDays(wkStart,i), t = freeMins(i);
+    const b = el("button", (i === DAYSEL ? "on " : "") + (isoOf(date) === today ? "today" : ""),
+      `<b>${d} ${date.getDate()}</b><small>${t ? dur(t) : "—"}</small>`);
+    b.onclick = () => { DAYSEL = i; renderStrip(); renderGrid(); };
+    strip.appendChild(b);
+  });
+}
+
 function renderGrid(){
   const g = $("#grid"); g.innerHTML = "";
   /* An overnight shift stretches the window to a full 24h, so scale the day to
      fit rather than letting the useful hours get pushed off screen. */
-  const [lo,hi] = gridWindow();
-  PX = Math.max(0.42, Math.min(0.9, 760/(hi-lo)));
+  const phone = isPhone();
+  if(DAYSEL < 0 || DAYSEL > 6) DAYSEL = 0;
+  const [lo,hi] = gridWindow(phone ? [DAYSEL] : null);
+  PX = phone ? Math.max(0.55, Math.min(1.1, 620/(hi-lo)))
+             : Math.max(0.42, Math.min(0.9, 760/(hi-lo)));
   const H = (hi-lo)*PX, wkStart = parseISO(VIEW), today = isoOf(new Date());
+  if(DAYSEL < 0 || DAYSEL > 6) DAYSEL = 0;
+  const shown = phone ? [DAYSEL] : [0,1,2,3,4,5,6];
+  g.style.gridTemplateColumns = phone ? "44px 1fr" : "";
   g.appendChild(el("div","colhead",""));
-  DAYS.forEach((d,i) => {
+  shown.forEach(i => {
     const date = addDays(wkStart,i), isToday = isoOf(date) === today;
-    const t = freeTogether(i).filter(s => s[1]-s[0] >= 30).reduce((x,s) => x + s[1]-s[0], 0);
+    const t = freeMins(i);
     g.appendChild(el("div","colhead" + (isToday ? " today" : ""),
-      `<b>${d} ${date.getDate()}</b><small>${t ? dur(t) + " free" : "—"}</small>`));
+      `<b>${DAYS[i]} ${date.getDate()}</b><small>${t ? dur(t) + " free" : "—"}</small>`));
   });
   const gut = el("div","gutter"); gut.style.height = H + "px";
   for(let m = lo; m <= hi; m += 60){ const t = el("div","",fmt(m)); t.style.top = (m-lo)*PX + "px"; gut.appendChild(t); }
   g.appendChild(gut);
 
-  DAYS.forEach((_,d) => {
+  shown.forEach(d => {
     const isToday = isoOf(addDays(wkStart,d)) === today;
     const col = el("div","col" + (isToday ? " today" : "")); col.style.height = H + "px";
     for(let m = lo; m <= hi; m += 30){
@@ -1109,7 +1200,8 @@ function renderGrid(){
         if(ev.target.classList.contains("grip")) return;
         openEdit(e);
       };
-      n.addEventListener("pointerdown", ev => startDrag(ev, e, lo));
+      // dragging fights with scrolling on a touch screen — tap opens the editor instead
+      if(!phone) n.addEventListener("pointerdown", ev => startDrag(ev, e, lo));
       col.appendChild(n);
     }
     g.appendChild(col);
@@ -1196,7 +1288,7 @@ function renderAll(){
   fillPlaces($("#fKind"), $("#fPerson").value);
   $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
   $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
-  renderWeekBar(); renderGrid(); renderFree(); renderTable(); save();
+  renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); save();
 }
 function del(id){
   S.tomb.push({k:id, t:Date.now()});          // remember the deletion, or sync would undo it
@@ -1598,6 +1690,15 @@ $("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
 $("#minGap").onchange = renderFree;
 $("#freeMode").onchange = renderFree;
 $("#scope").onchange = renderTable;
+/* rotating the phone or resizing flips between the one-day and seven-day layout */
+let rzT = null, wasPhone = isPhone();
+window.addEventListener("resize", () => {
+  clearTimeout(rzT);
+  rzT = setTimeout(() => {
+    if(isPhone() !== wasPhone){ wasPhone = isPhone(); renderStrip(); renderGrid(); }
+    else renderGrid();
+  }, 150);
+});
 document.addEventListener("keydown", e => {
   if(e.target.matches("input,textarea,select")) return;
   if(e.key === "ArrowLeft") $("#prevW").click();
@@ -1636,6 +1737,7 @@ $("#syncOff").onclick = () => {
   const m = $("#syncMsg"); m.className = "msg"; m.textContent = "Sync off. Your calendar stays on this laptop.";
 };
 
+if(isPhone()) $("#addCard").removeAttribute("open");   // calendar first on a phone
 load(); paintShots(); renderAll();
 if(PENDING) askImport(PENDING.data, PENDING.from);   // ask only once the app is on screen
 syncStatus(SYNC.on ? "connecting…" : "off");
