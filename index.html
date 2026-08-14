@@ -3,7 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Schedule Sync — find our free time</title>
+<title>Schedule Sync: when are we both free?</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Schedule">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
 <style>
   :root{
     color-scheme:dark;
@@ -283,7 +291,7 @@
 
 <div class="topbar">
 <header>
-  <div class="brand">Schedule Sync <span>— when are we both free?</span></div>
+  <div class="brand">Schedule Sync <span>when are we both free?</span></div>
   <div class="who">
     <span class="dot a"></span><input id="nameA" maxlength="24" placeholder="Abhi">
     <span class="dot b"></span><input id="nameB" maxlength="24" placeholder="Kashish">
@@ -385,7 +393,7 @@
       <b>Drop an image here</b>
       click to choose a file, or just press ⌘V to paste a screenshot
       <div style="margin-top:6px;font-size:12px;color:var(--faint)">
-        Works best on a screenshot of a shift list or class list. Photos of a printed grid work too — check what it read before you add it.
+        Works best on a screenshot of a shift list or class list. Photos of a printed grid work too, but check what it read before you add it.
       </div>
       <input type="file" id="photoIn" accept="image/*" multiple hidden>
     </div>
@@ -401,7 +409,7 @@
   </div>
 
   <div class="card" id="ocrTextCard" style="display:none">
-    <h2>What it read — fix anything wrong, then confirm</h2>
+    <h2>What it read: fix anything wrong, then confirm</h2>
     <textarea id="ocrText"></textarea>
     <div class="row" style="margin-top:10px">
       <button class="btn" id="ocrParse">Check these lines</button>
@@ -436,7 +444,7 @@
       <input type="file" id="fileIn" accept=".json" hidden>
     </div>
     <p class="hint" style="margin-top:10px">
-      Everything lives in this browser only — nothing is uploaded anywhere, including the photos.
+      Everything lives in this browser only. Nothing is uploaded anywhere, including the photos.
       The share link carries the whole calendar inside the URL, so you can text it to her.
     </p>
     <div id="expMsg" class="msg"></div>
@@ -465,7 +473,7 @@
     <h2>Sync with her laptop <span id="syncState" class="tag">off</span></h2>
     <p class="hint" style="margin:0 0 12px">
       Paste the two values from your Supabase project (<b>Settings → API</b>), and pick a room code you
-      both use — anything, as long as it matches and isn't guessable. Put the same three values in her copy.
+      both use. Anything works, as long as it matches and isn't guessable. Put the same three values in her copy.
       Changes then appear on both laptops within about five seconds.
     </p>
     <div class="row">
@@ -480,7 +488,7 @@
     <div id="syncMsg" class="msg"></div>
   </div>
   <div class="card">
-    <h2>Waking hours — free time is only counted inside these</h2>
+    <h2>Waking hours: free time is only counted inside these</h2>
     <div class="row">
       <div class="f"><label><span class="dot a"></span> <b id="stA">You</b> up at</label><input id="wakeA" type="time" value="08:00"></div>
       <div class="f"><label>in bed by</label><input id="sleepA" type="time" value="23:00"></div>
@@ -512,13 +520,13 @@ const WEEKDAYS = [1,2,3,4,5];
    dragging converts mouse movement to time at the same scale. */
 let PX = 0.9;
 
-/* Where a shift is — the list depends on whose block it is. */
+/* Where a shift is. The list depends on whose block it is. */
 const PLACES = {
   a: [["store","Store"], ["rso","RSO"], ["other","Other"]],
   b: [["rso","RSO"], ["library","Library"], ["saxbys","Saxbys"], ["other","Other"]]
 };
 const PLACE_LABEL = {store:"Store", rso:"RSO", library:"Library", saxbys:"Saxbys", other:"Other"};
-/* Place colours need a second set for light mode — the pale ones vanish on white. */
+/* Place colours need a second set for light mode, since the pale ones vanish on white. */
 const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"#3ddc97", other:"#8b93a7"};
 const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", other:"#475569"};
 const placeName = k => PLACE_LABEL[k] || (k ? k[0].toUpperCase() + k.slice(1) : "Other");
@@ -621,8 +629,8 @@ function migrateWeekStart(d){
   d.v = 3;
   return d;
 }
-/* A week key must be the Sunday that starts the week. Anything else — left over
-   from when weeks began on Monday — points at a week the app never looks up, so
+/* A week key must be the Sunday that starts the week. Anything else, left over
+   from when weeks began on Monday, points at a week the app never looks up, so
    the blocks silently vanish. Snap them back onto the week they belong to. */
 function repairWeeks(d){
   let fixed = 0;
@@ -721,7 +729,7 @@ async function syncNow(quiet){
     if(before !== after){ save(); renderAll(); }
     syncStatus(`in sync · ${new Date(lastSync).toLocaleTimeString()}`);
   }catch(err){
-    syncStatus("offline — " + String(err.message || err), true);
+    syncStatus("offline: " + String(err.message || err), true);
   }finally{ syncBusy = false; }
 }
 function syncSoon(){                          // push local edits quickly, but batched
@@ -780,7 +788,7 @@ function askImport(d, from){
   wrap.innerHTML = `<div class="sheet">
     <h3>A calendar is coming in from ${escapeHTML(from)}</h3>
     <p class="sub">Merging keeps everything you already have and adds whatever is new.
-      Replacing throws your calendar away — there is no undo.</p>
+      Replacing throws your calendar away. There is no undo.</p>
     <div class="sum">
       <div><span>Their <b>${escapeHTML(d.nameA || "person A")}</b></span><b>${inA} block${inA===1?"":"s"}</b></div>
       <div><span>Their <b>${escapeHTML(d.nameB || "person B")}</b></span><b>${inB} block${inB===1?"":"s"}</b></div>
@@ -789,7 +797,7 @@ function askImport(d, from){
       <div><span>You currently have</span><b>${mineNow} block${mineNow===1?"":"s"}</b></div>
     </div>
     <label class="swap"><input type="checkbox" class="mSwap">
-      <span>Swap the two people — their first person becomes your second, and the other way round.
+      <span>Swap the two people. Their first person becomes your second, and the other way round.
       Tick this if you each set the app up from your own side, so their
       <b>${inA} block${inA===1?"":"s"}</b> should land on <b>${escapeHTML(nameOf("b"))}</b>
       rather than <b>${escapeHTML(nameOf("a"))}</b>.</span></label>
@@ -880,7 +888,7 @@ function badWake(){
 const freeTogether = d => intersect(subtract(awake("a"), busyOf("a",d)), subtract(awake("b"), busyOf("b",d)));
 const busyTogether = d => intersect(busyOf("a",d), busyOf("b",d));
 
-/* Showing one day on a phone, fit the timeline to that day — otherwise a single
+/* Showing one day on a phone, fit the timeline to that day, otherwise a single
    overnight shift somewhere in the week buries every other day under empty night. */
 function gridWindow(days){
   let lo = Math.min(toMin(S.wakeA), toMin(S.wakeB)), hi = Math.max(toMin(S.sleepA), toMin(S.sleepB));
@@ -896,7 +904,7 @@ const DAYWORDS = [
   [/\bfridays?\b|\bfri\b/,5],[/\bsaturdays?\b|\bsat\b/,6]];
 const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
 
-/* A date like 8/14 or "Aug 14" pins the block to a real day — returns {day, week}. */
+/* A date like 8/14 or "Aug 14" pins the block to a real day. Returns {day, week}. */
 function parseDate(text){
   const t = text.toLowerCase();
   let mo = null, dy = null;
@@ -1178,7 +1186,7 @@ function renderStrip(){
   DAYS.forEach((d,i) => {
     const date = addDays(wkStart,i), t = freeMins(i);
     const b = el("button", (i === DAYSEL ? "on " : "") + (isoOf(date) === today ? "today" : ""),
-      `<b>${d} ${date.getDate()}</b><small>${t ? dur(t) : "—"}</small>`);
+      `<b>${d} ${date.getDate()}</b><small>${t ? dur(t) : "0h"}</small>`);
     b.onclick = () => { DAYSEL = i; renderStrip(); renderGrid(); };
     strip.appendChild(b);
   });
@@ -1202,7 +1210,7 @@ function renderGrid(){
     const date = addDays(wkStart,i), isToday = isoOf(date) === today;
     const t = freeMins(i);
     g.appendChild(el("div","colhead" + (isToday ? " today" : ""),
-      `<b>${DAYS[i]} ${date.getDate()}</b><small>${t ? dur(t) + " free" : "—"}</small>`));
+      `<b>${DAYS[i]} ${date.getDate()}</b><small>${t ? dur(t) + " free" : "0h free"}</small>`));
   });
   const gut = el("div","gutter"); gut.style.height = H + "px";
   for(let m = lo; m <= hi; m += 60){ const t = el("div","",fmt(m)); t.style.top = (m-lo)*PX + "px"; gut.appendChild(t); }
@@ -1243,7 +1251,7 @@ function renderGrid(){
         if(ev.target.classList.contains("grip")) return;
         openEdit(e);
       };
-      // dragging fights with scrolling on a touch screen — tap opens the editor instead
+      // dragging fights with scrolling on a touch screen, so tap opens the editor instead
       if(!phone) n.addEventListener("pointerdown", ev => startDrag(ev, e, lo));
       col.appendChild(n);
     }
@@ -1261,9 +1269,9 @@ function renderFree(){
   $("#stats").innerHTML = `
     <div class="stat"><b>${dur(total)}</b><span>${isFree ? "free together" : "overlapping busy"} · ${weekTitle(VIEW).toLowerCase()}</span></div>
     <div class="stat"><b>${count}</b><span>windows</span></div>
-    <div class="stat"><b>${bestD < 0 ? "—" : DAYS[bestD]}</b><span>${isFree ? "best day" : "busiest overlap"}</span></div>
-    <div class="stat"><b>${longest[1] < 0 ? "—" : dur(longest[0])}</b><span>${longest[1] < 0 ? "longest" : "longest — " + DAYS[longest[1]] + " " + fmt(longest[2][0])}</span></div>`;
-  /* A flat zero is nearly always a setup problem, not a real answer — say which. */
+    <div class="stat"><b>${bestD < 0 ? "none" : DAYS[bestD]}</b><span>${isFree ? "best day" : "busiest overlap"}</span></div>
+    <div class="stat"><b>${longest[1] < 0 ? "none" : dur(longest[0])}</b><span>${longest[1] < 0 ? "longest" : "longest: " + DAYS[longest[1]] + " " + fmt(longest[2][0])}</span></div>`;
+  /* A flat zero is nearly always a setup problem, not a real answer, so say which. */
   const nA = weekEvents(VIEW).filter(e => e.person === "a").length;
   const nB = weekEvents(VIEW).filter(e => e.person === "b").length;
   const bw = badWake();
@@ -1273,13 +1281,13 @@ function renderFree(){
   if(bw.length){
     cls = "note warn";
     why = `${bw.map(escapeHTML).join(" and ")}'s waking hours are blank or end before they start, ` +
-          `so the whole day is being counted instead. Fix them under <b>Settings</b>. — ` + why;
+          `so the whole day is being counted instead. Fix them under <b>Settings</b>. ` + why;
   }else if(isFree && total === 0){
     cls = "note warn";
-    why = (!nA && !nB) ? "No blocks in this week yet — add some, or upload a photo. — " + why
+    why = (!nA && !nB) ? "No blocks in this week yet. Add some, or upload a photo. " + why
       : (nA === 0 || nB === 0)
-        ? `Only one of you has blocks this week, so every waking hour should be free. If it says 0, check the minimum gap above. — ${why}`
-        : `Nothing is free for ${dur(+$("#minGap").value)} straight this week. Try a smaller minimum gap, or check the waking hours in <b>Settings</b>. — ${why}`;
+        ? `Only one of you has blocks this week, so every waking hour should be free. If it says 0, check the minimum gap above. ${why}`
+        : `Nothing is free for ${dur(+$("#minGap").value)} straight this week. Try a smaller minimum gap, or check the waking hours in <b>Settings</b>. ${why}`;
   }
   $("#why").className = cls;
   $("#why").innerHTML = why;
@@ -1336,7 +1344,7 @@ function renderHours(){
     host.appendChild(card);
   });
   $("#hoursNote").innerHTML =
-    `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)} — ${grand ? dur(grand) : "0h"} worked between you. ` +
+    `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)}. ${grand ? dur(grand) : "0h"} worked between you. ` +
     `Use the ‹ › arrows at the top to check another week.`;
 }
 function renderTable(){
@@ -1345,7 +1353,7 @@ function renderTable(){
            : scope === "every" ? S.events.filter(e => e.week === null) : S.events.slice();
   rows.sort((x,y) => (x.week||"").localeCompare(y.week||"") || x.day-y.day || x.start-y.start);
   if(!rows.length){
-    tb.innerHTML = `<tr><td colspan="8" class="none">Nothing here yet — add a block, paste a schedule, or upload a photo.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="8" class="none">Nothing here yet. Add a block, paste a schedule, or upload a photo.</td></tr>`;
     return;
   }
   for(const e of rows){
@@ -1402,7 +1410,7 @@ function stageLines(lines, source){
   lines.forEach((ln,i) => {
     const r = parseLine(ln);
     if(!r) return;
-    if(r.error){ if(ln.trim()) bad.push(`line ${i+1} — ${r.error}: “${ln.trim()}”`); return; }
+    if(r.error){ if(ln.trim()) bad.push(`line ${i+1}: ${r.error}: “${ln.trim()}”`); return; }
     r.days.forEach(d => {
       if(r.overnight){                       // 10pm–2am becomes tonight's tail + tomorrow's head
         rows.push({day:d, start:r.start, end:1440, title:r.title, pinned:r.pinned || null});
@@ -1420,7 +1428,7 @@ function renderReview(bad, source){
   if(!STAGE.length && !bad.length) return;
   const host = source === "photo" ? $("#v-photo") : $("#v-import");
   const box = el("div","review");
-  box.innerHTML = `<h3>Found ${STAGE.length} block${STAGE.length===1?"":"s"} — whose schedule is this?</h3>
+  box.innerHTML = `<h3>Found ${STAGE.length} block${STAGE.length===1?"":"s"}. Whose schedule is this?</h3>
     <p class="sub">Nothing is added until you pick a person and confirm.</p>
     <div class="askwho">
       <button class="pa" data-w="a"><b>${escapeHTML(nameOf("a"))}</b><small>mine</small></button>
@@ -1430,7 +1438,7 @@ function renderReview(bad, source){
       <div class="f"><label>These blocks</label>
         <select class="rvRepeat">
           <option value="once">happen in one week only</option>
-          <option value="every">repeat every week — classes, fixed shifts</option>
+          <option value="every">repeat every week (classes, fixed shifts)</option>
         </select></div>
       <div class="f"><label>Which week</label><select class="rvWeek"></select></div>
       <div class="f"><label>Where</label><select class="rvKind"></select></div>
@@ -1457,7 +1465,7 @@ function renderReview(bad, source){
       if(r.rollover) dayTd.appendChild(el("span","tag"," next wk"));
 
       const lenTd = el("td","","");
-      const showLen = () => lenTd.textContent = r.end > r.start ? dur(r.end - r.start) : "—";
+      const showLen = () => lenTd.textContent = r.end > r.start ? dur(r.end - r.start) : "0m";
       const timeTd = el("td","cellwrap");
       const mk = (key) => { const inp = el("input","cell"); inp.type = "time"; inp.value = toHHMM(r[key]);
         inp.onchange = () => { r[key] = toMin(inp.value); showLen(); }; return inp; };
@@ -1487,7 +1495,7 @@ function renderReview(bad, source){
   const rvWeek = box.querySelector(".rvWeek");
   for(let k = -2; k <= 5; k++){
     const iso = isoOf(addDays(parseISO(thisWeekStart()), k*7)), o = el("option");
-    o.value = iso; o.textContent = weekTitle(iso) + " — " + weekDates(iso);
+    o.value = iso; o.textContent = weekTitle(iso) + ", " + weekDates(iso);
     if(iso === VIEW) o.selected = true;
     rvWeek.appendChild(o);
   }
@@ -1533,7 +1541,7 @@ function renderReview(bad, source){
     goWeek(landed); syncSoon();          // jump to where they actually went
     const m = source === "photo" ? $("#ocrMsg") : $("#expMsg");
     m.className = "msg";
-    m.textContent = `Added ${n} block${n===1?"":"s"} to ${who} — ${rep === "every" ? "repeating every week" : weekTitle(landed).toLowerCase() + ", " + weekDates(landed)}.`;
+    m.textContent = `Added ${n} block${n===1?"":"s"} to ${who}: ${rep === "every" ? "repeating every week" : weekTitle(landed).toLowerCase() + ", " + weekDates(landed)}.`;
     document.querySelector('nav.tabs button[data-v="week"]').click();
     window.scrollTo({top:0, behavior:"smooth"});
   };
@@ -1617,7 +1625,7 @@ $("#ocrBtn").onclick = async () => {
   }catch(e){
     bar.style.display = "none"; btn.disabled = false;
     msg.className = "msg err";
-    msg.innerHTML = "Couldn't load the text reader — it needs internet the first time. " +
+    msg.innerHTML = "Couldn't load the text reader. It needs internet the first time. " +
       "You can still type the schedule under <b>Paste / Backup</b>, or send the photo to Claude and paste back what it gives you.";
     return;
   }
