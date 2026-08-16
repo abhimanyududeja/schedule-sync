@@ -31,26 +31,38 @@ const dayIndex = p => new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay();
 
 /* A UTC instant rendered in the calendar's own timezone. Floating and TZID
    values are already local, so their digits are used as written. */
-function toLocalParts(date) {
+function toLocalParts(date, tz) {
   const f = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz || TZ, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false
   });
   const p = Object.fromEntries(f.formatToParts(date).map(x => [x.type, x.value]));
   return { y: +p.year, mo: +p.month, d: +p.day, h: +p.hour % 24, mi: +p.minute };
 }
-function icsParts(val) {
+function icsParts(val, tz) {
   const m = val.trim().match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
   if (!m) return null;
   const [, y, mo, d, h, mi, s, z] = m;
   if (h === undefined) return { y: +y, mo: +mo, d: +d, h: 0, mi: 0, allDay: true };
-  if (z) return toLocalParts(new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)));
+  if (z) return toLocalParts(new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)), tz);
   return { y: +y, mo: +mo, d: +d, h: +h, mi: +mi };
 }
 const minsOf = p => p.h * 60 + p.mi;
 const stamp = p => Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi);
 
+/* Read the timezone the feed declares rather than assuming one. If the calendar
+   is set correctly this is a no-op; if it is set to another zone (WhenToWork
+   writes shift times into whatever zone the Google calendar uses, so an account
+   left on Asia/Kolkata records a Boston 8am shift as 8am IST) this recovers the
+   wall-clock time actually intended. Either way the label and the block agree. */
+function feedTimezone(text) {
+  const m = text.match(/^X-WR-TIMEZONE:(.+)$/mi);
+  if (!m) return null;
+  const tz = m[1].trim();
+  try { new Intl.DateTimeFormat("en-CA", { timeZone: tz }); return tz; } catch { return null; }
+}
 function parseICS(text) {
+  const tz = feedTimezone(text) || TZ;
   const out = [];
   let cur = null;
   for (const raw of text.replace(/\r\n/g, "\n").replace(/\n[ \t]/g, "").split("\n")) {
@@ -62,12 +74,13 @@ function parseICS(text) {
     if (i < 0) continue;
     const name = t.slice(0, i).split(";")[0].toUpperCase();
     const val = t.slice(i + 1);
-    if (name === "DTSTART") cur.start = icsParts(val);
-    else if (name === "DTEND") cur.end = icsParts(val);
+    if (name === "DTSTART") cur.start = icsParts(val, tz);
+    else if (name === "DTEND") cur.end = icsParts(val, tz);
     else if (name === "SUMMARY") cur.summary = val.replace(/\\n/gi, ", ").replace(/\\,/g, ",").replace(/\\;/g, ";").trim();
     else if (name === "UID") cur.uid = val.trim();
     else if (name === "STATUS") cur.status = val.trim().toUpperCase();
   }
+  out.tz = tz;
   return out;
 }
 
@@ -76,7 +89,10 @@ function blocksFor(feed, feedId, ev) {
   const out = [];
   if (ev.status === "CANCELLED" || ev.allDay) return out;
   if (stamp(ev.end) <= stamp(ev.start)) return out;
-  const title = (ev.summary || feed.label || "Shift").slice(0, 60);
+  // WhenToWork appends the time to the title; the block already shows it.
+  const title = (ev.summary || feed.label || "Shift")
+    .replace(/\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "")
+    .trim().slice(0, 60) || feed.label || "Shift";
 
   let cur = { ...ev.start };
   for (let guard = 0; guard < 8; guard++) {
