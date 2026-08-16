@@ -834,6 +834,7 @@ async function refreshFeeds(quiet){
   if(!S.feeds || !S.feeds.length) return;
   let touched = false;
   for(const f of S.feeds){
+    if(f.server) continue;            // a scheduled job owns this one; the browser cannot read it
     try{
       const r = await refreshFeed(f);
       if(r.added || r.removed || r.changed) touched = true;
@@ -1956,7 +1957,7 @@ function renderFeeds(){
       `<div class="fmeta">
          <b><span class="dot ${f.person}"></span>${escapeHTML(f.label || placeName(f.kind))}</b>
          <span>${escapeHTML(nameOf(f.person))} · ${escapeHTML(placeName(f.kind))} · ${n} shift${n===1?"":"s"}</span>
-         <small>${escapeHTML(f.url.slice(0,68))}${f.url.length>68?"…":""}</small>
+         <small>${f.server ? "pulled every 30 min by the scheduled job" : escapeHTML(f.url.slice(0,68)) + (f.url.length>68?"…":"")}</small>
          ${f.err ? `<em class="bad">${escapeHTML(f.err)}</em>`
                  : `<em>${f.last ? "updated " + new Date(f.last).toLocaleString() : "not fetched yet"}</em>`}
        </div>`;
