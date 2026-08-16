@@ -142,6 +142,14 @@
   .slot.busy{background:#ffb45c1a;border-color:#ffb45c55}
   .slot span{color:var(--dim);font-variant-numeric:tabular-nums}
   .none{color:var(--faint);font-size:12px;font-style:italic}
+  .feedrow{display:flex;align-items:flex-start;gap:10px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;margin-bottom:8px}
+  .feedrow .fmeta{flex:1;min-width:0;line-height:1.45}
+  .feedrow b{display:flex;align-items:center;gap:7px;font-size:13.5px}
+  .feedrow span{display:block;font-size:12px;color:var(--dim)}
+  .feedrow small{display:block;font-size:11px;color:var(--faint);word-break:break-all}
+  .feedrow em{display:block;font-style:normal;font-size:11.5px;color:var(--free);margin-top:2px}
+  .feedrow em.bad{color:var(--warn)}
   .hours{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
   .hcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
   .hcard h3{margin:0 0 4px;font-size:14px;display:flex;align-items:center;gap:8px;font-weight:600}
@@ -488,6 +496,28 @@
     <div id="syncMsg" class="msg"></div>
   </div>
   <div class="card">
+    <h2>Job calendars <span id="feedState" class="wkchip"></span></h2>
+    <p class="hint" style="margin:-4px 0 12px">
+      If your work scheduler can publish your shifts as a calendar link (WhenToWork calls it
+      <b>Export to Personal Calendar</b>, most others say <b>iCal</b>, <b>Subscribe</b> or <b>webcal</b>),
+      paste that link here. Shifts then appear by themselves and update when the rota changes.
+      These blocks are owned by the feed: a shift dropped at work disappears here too, so do not hand-edit them.
+    </p>
+    <div class="row" style="margin-bottom:12px">
+      <div class="f" style="flex:1;min-width:260px"><label>Calendar link</label>
+        <input id="feedUrl" placeholder="https://... .ics  (or webcal://...)"></div>
+      <div class="f"><label>Whose</label>
+        <select id="feedWho"><option value="a">You</option><option value="b">Her</option></select></div>
+      <div class="f"><label>Where</label><select id="feedKind"></select></div>
+      <div class="f"><label>Label</label><input id="feedLabel" placeholder="Library" style="width:130px"></div>
+      <button class="btn" id="feedAdd">Connect</button>
+      <button class="btn ghost" id="feedRefresh">Refresh now</button>
+    </div>
+    <div id="feedList"></div>
+    <div id="feedMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
     <h2>Waking hours: free time is only counted inside these</h2>
     <div class="row">
       <div class="f"><label><span class="dot a"></span> <b id="stA">You</b> up at</label><input id="wakeA" type="time" value="08:00"></div>
@@ -545,7 +575,7 @@ function fillPlaces(sel, person){
 }
 
 const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"Abhi", nameB:"Kashish",
-  wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[]});
+  wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[], feeds:[]});
 const newDeviceId = () => Math.random().toString(36).slice(2,8);
 let S = blank(), uid = 1, VIEW = "";
 /* Ids carry the device that made them, so two laptops never collide. */
@@ -611,6 +641,7 @@ function migrateSyncIds(d){
     if(!e.m) e.m = now;
   });
   if(!Array.isArray(d.tomb)) d.tomb = [];
+  if(!Array.isArray(d.feeds)) d.feeds = [];
   if(!d.sm) d.sm = now;
   d.v = 4;
   return d;
@@ -649,6 +680,7 @@ function repairWeeks(d){
 function finishLoad(){
   if(!S.did) S.did = newDeviceId();
   if(!Array.isArray(S.tomb)) S.tomb = [];
+  if(!Array.isArray(S.feeds)) S.feeds = [];
   S.events.forEach(e => { if(e.week === undefined) e.week = null; if(!e.m) e.m = Date.now(); });
   const fixed = repairWeeks(S);
   if(fixed) setTimeout(() => {
@@ -684,12 +716,128 @@ function mergeStates(local, remote){
     const t = tomb.get(e.id);
     return !(t && t >= (e.m||0));            // deleted after its last edit
   });
+  const feeds = new Map();
+  [...(local.feeds||[]), ...(remote.feeds||[])].forEach(f => {
+    const prev = feeds.get(f.id);
+    if(!prev || (f.m||0) > (prev.m||0)) feeds.set(f.id, f);
+  });
   const newer = (remote.sm||0) > (local.sm||0) ? remote : local;
   return Object.assign({}, local, {
-    events, tomb:[...tomb].map(([k,t]) => ({k,t})),
+    events, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
     sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB,
     wakeA:newer.wakeA, sleepA:newer.sleepA, wakeB:newer.wakeB, sleepB:newer.sleepB
   });
+}
+
+/* ---- subscribing to a job calendar (WhenToWork, Teamwork, Google, anything
+   that publishes .ics). Shifts pulled from a feed are owned by the feed: they
+   are refreshed wholesale, so a shift dropped upstream disappears here too. ---- */
+function unfoldICS(t){ return t.replace(/\r\n/g,"\n").replace(/\n[ \t]/g,""); }
+function icsText(v){
+  return v.replace(/\\n/gi,", ").replace(/\\,/g,",").replace(/\\;/g,";").replace(/\\\\/g,"\\").trim();
+}
+function icsDate(val){
+  const m = val.trim().match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
+  if(!m) return null;
+  const [,y,mo,d,h,mi,s,z] = m;
+  if(h === undefined) return new Date(+y, +mo-1, +d);
+  return z ? new Date(Date.UTC(+y, +mo-1, +d, +h, +mi, +s))
+           : new Date(+y, +mo-1, +d, +h, +mi, +s);
+}
+function parseICS(text){
+  const out = []; let cur = null;
+  for(const ln of unfoldICS(text).split("\n")){
+    const t = ln.trim();
+    if(t === "BEGIN:VEVENT"){ cur = {}; continue; }
+    if(t === "END:VEVENT"){ if(cur && cur.start && cur.end) out.push(cur); cur = null; continue; }
+    if(!cur) continue;
+    const i = t.indexOf(":"); if(i < 0) continue;
+    const name = t.slice(0, i).split(";")[0].toUpperCase(), val = t.slice(i+1);
+    if(name === "DTSTART") cur.start = icsDate(val);
+    else if(name === "DTEND") cur.end = icsDate(val);
+    else if(name === "SUMMARY") cur.summary = icsText(val);
+    else if(name === "LOCATION") cur.location = icsText(val);
+    else if(name === "UID") cur.uid = val.trim();
+    else if(name === "STATUS") cur.status = val.trim().toUpperCase();
+  }
+  return out;
+}
+const hash32 = s => { let h = 5381; for(let i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+
+/* Turn one feed event into day-sized blocks, splitting anything that runs past midnight. */
+function feedBlocks(feed, ev){
+  const out = [];
+  if(ev.status === "CANCELLED" || !ev.start || !ev.end || ev.end <= ev.start) return out;
+  const title = (ev.summary || feed.label || placeName(feed.kind)).slice(0, 60);
+  let cursor = new Date(ev.start);
+  for(let guard = 0; guard < 8 && cursor < ev.end; guard++){
+    const dayEnd = new Date(cursor); dayEnd.setHours(24,0,0,0);
+    const segEnd = ev.end < dayEnd ? ev.end : dayEnd;
+    const startMin = cursor.getHours()*60 + cursor.getMinutes();
+    let endMin = segEnd.getHours()*60 + segEnd.getMinutes();
+    if(segEnd.getTime() === dayEnd.getTime()) endMin = 1440;
+    if(endMin > startMin){
+      const week = isoOf(weekStartOf(cursor));
+      out.push({
+        id: "f" + feed.id + "_" + hash32((ev.uid || title) + "|" + week + "|" + startMin),
+        person: feed.person, day: cursor.getDay(), start: startMin, end: endMin,
+        title, kind: feed.kind, week, src: feed.id
+      });
+    }
+    cursor = dayEnd;
+  }
+  return out;
+}
+
+async function refreshFeed(feed){
+  const res = await fetch(feed.url, {cache:"no-store"});
+  if(!res.ok) throw new Error("the feed replied " + res.status);
+  const text = await res.text();
+  if(!/BEGIN:VCALENDAR/i.test(text)) throw new Error("that URL is not a calendar feed");
+
+  const lo = addDays(parseISO(thisWeekStart()), -21), hi = addDays(parseISO(thisWeekStart()), 84);
+  const want = new Map();
+  parseICS(text).forEach(ev => {
+    if(ev.start < lo || ev.start > hi) return;
+    feedBlocks(feed, ev).forEach(b => want.set(b.id, b));
+  });
+
+  const now = Date.now();
+  let added = 0, removed = 0, changed = 0;
+  const inWindow = e => !e.week || (parseISO(e.week) >= addDays(lo,-7) && parseISO(e.week) <= hi);
+  S.events.filter(e => e.src === feed.id && inWindow(e)).forEach(e => {
+    const w = want.get(e.id);
+    if(!w){ S.tomb.push({k:e.id, t:now}); removed++; return; }          // gone upstream
+    if(w.title !== e.title || w.start !== e.start || w.end !== e.end ||
+       w.day !== e.day || w.person !== e.person || w.kind !== e.kind){
+      Object.assign(e, w); e.m = now; changed++;
+    }
+    want.delete(e.id);
+  });
+  if(removed) S.events = S.events.filter(e => !S.tomb.some(t => t.k === e.id && t.t === now));
+  want.forEach(b => { b.m = now; S.events.push(b); added++; });
+
+  feed.last = now; feed.err = "";
+  feed.count = S.events.filter(e => e.src === feed.id).length;
+  return {added, removed, changed};
+}
+
+async function refreshFeeds(quiet){
+  if(!S.feeds || !S.feeds.length) return;
+  let touched = false;
+  for(const f of S.feeds){
+    try{
+      const r = await refreshFeed(f);
+      if(r.added || r.removed || r.changed) touched = true;
+    }catch(err){
+      f.err = String(err.message || err);
+      if(/Failed to fetch|NetworkError|CORS/i.test(f.err))
+        f.err = "blocked by the site (it does not allow browsers to read the feed)";
+    }
+  }
+  renderAll();
+  if(touched) syncSoon();
+  if(!quiet) renderFeeds();
 }
 
 const sHead = () => ({apikey:SYNC.key, Authorization:"Bearer " + SYNC.key,
@@ -1381,9 +1529,11 @@ function renderAll(){
   ["#fPerson","#pWhoA"].forEach(()=>{});
   $("#fPerson").options[0].text = nameOf("a"); $("#fPerson").options[1].text = nameOf("b");
   fillPlaces($("#fKind"), $("#fPerson").value);
+  fillPlaces($("#feedKind"), $("#feedWho").value);
   $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
   $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
   renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours(); save();
+  if(document.getElementById('feedState')) renderFeeds();
 }
 function del(id){
   S.tomb.push({k:id, t:Date.now()});          // remember the deletion, or sync would undo it
@@ -1785,6 +1935,66 @@ $("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
 $("#minGap").onchange = renderFree;
 $("#freeMode").onchange = renderFree;
 $("#scope").onchange = renderTable;
+/* ---- job calendar feeds: UI ---- */
+function renderFeeds(){
+  const host = $("#feedList"); host.innerHTML = "";
+  const chip = $("#feedState");
+  chip.textContent = S.feeds.length ? S.feeds.length + " connected" : "none connected";
+  if(!S.feeds.length){ host.innerHTML = `<div class="none">No job calendars connected yet.</div>`; return; }
+  S.feeds.forEach(f => {
+    const n = S.events.filter(e => e.src === f.id).length;
+    const row = el("div","feedrow");
+    row.innerHTML =
+      `<div class="fmeta">
+         <b><span class="dot ${f.person}"></span>${escapeHTML(f.label || placeName(f.kind))}</b>
+         <span>${escapeHTML(nameOf(f.person))} · ${escapeHTML(placeName(f.kind))} · ${n} shift${n===1?"":"s"}</span>
+         <small>${escapeHTML(f.url.slice(0,68))}${f.url.length>68?"…":""}</small>
+         ${f.err ? `<em class="bad">${escapeHTML(f.err)}</em>`
+                 : `<em>${f.last ? "updated " + new Date(f.last).toLocaleString() : "not fetched yet"}</em>`}
+       </div>`;
+    const x = el("button","x","✕");
+    x.title = "Disconnect and remove its shifts";
+    x.onclick = () => {
+      if(!confirm(`Disconnect "${f.label || placeName(f.kind)}" and remove its ${n} shift${n===1?"":"s"}?`)) return;
+      const t = Date.now();
+      S.events.filter(e => e.src === f.id).forEach(e => S.tomb.push({k:e.id, t}));
+      S.events = S.events.filter(e => e.src !== f.id);
+      S.feeds  = S.feeds.filter(x2 => x2.id !== f.id);
+      renderAll(); renderFeeds(); syncSoon();
+    };
+    row.appendChild(x);
+    host.appendChild(row);
+  });
+}
+$("#feedWho").onchange = () => fillPlaces($("#feedKind"), $("#feedWho").value);
+$("#feedAdd").onclick = async () => {
+  const msg = $("#feedMsg");
+  let url = $("#feedUrl").value.trim().replace(/^webcal:\/\//i, "https://");
+  if(!/^https?:\/\//i.test(url)){ msg.className = "msg err"; msg.textContent = "That does not look like a link."; return; }
+  const feed = { id: hash32(url).slice(0,8), url, person: $("#feedWho").value,
+                 kind: $("#feedKind").value, label: $("#feedLabel").value.trim(), m: Date.now() };
+  if(S.feeds.some(f => f.id === feed.id)){ msg.className = "msg err"; msg.textContent = "That calendar is already connected."; return; }
+  msg.className = "msg"; msg.textContent = "Fetching…";
+  S.feeds.push(feed);
+  try{
+    const r = await refreshFeed(feed);
+    msg.textContent = `Connected. Pulled in ${r.added} shift${r.added===1?"":"s"}.`;
+    $("#feedUrl").value = ""; $("#feedLabel").value = "";
+  }catch(err){
+    S.feeds = S.feeds.filter(f => f.id !== feed.id);
+    msg.className = "msg err";
+    msg.innerHTML = /Failed to fetch|NetworkError/i.test(String(err))
+      ? "Could not read that feed. The site is refusing to let a browser fetch it, which some schedulers do. Tell me and I will set up a workaround."
+      : "Could not read that feed: " + escapeHTML(String(err.message || err));
+  }
+  renderAll(); renderFeeds(); syncSoon();
+};
+$("#feedRefresh").onclick = async () => {
+  const msg = $("#feedMsg"); msg.className = "msg"; msg.textContent = "Refreshing…";
+  await refreshFeeds();
+  msg.textContent = "Refreshed " + new Date().toLocaleTimeString() + ".";
+};
+
 /* ---- theme: auto (follow the OS) → light → dark → auto ---- */
 const TKEY = "schedsync-theme";
 let THEME = "auto";
@@ -1857,7 +2067,9 @@ $("#syncOff").onclick = () => {
 
 if(isPhone()) $("#addCard").removeAttribute("open");   // calendar first on a phone
 load(); paintShots(); renderAll();
-if(PENDING) askImport(PENDING.data, PENDING.from);   // ask only once the app is on screen
+if(PENDING) askImport(PENDING.data, PENDING.from);
+refreshFeeds(true);
+setInterval(() => refreshFeeds(true), 30*60*1000);   // ask only once the app is on screen
 syncStatus(SYNC.on ? "connecting…" : "off");
 syncStart();
 setTimeout(fillSyncFields, 300);   // after any late form restoration
