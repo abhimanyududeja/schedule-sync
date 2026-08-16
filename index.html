@@ -732,6 +732,14 @@ function mergeStates(local, remote){
 /* ---- subscribing to a job calendar (WhenToWork, Teamwork, Google, anything
    that publishes .ics). Shifts pulled from a feed are owned by the feed: they
    are refreshed wholesale, so a shift dropped upstream disappears here too. ---- */
+/* The "Add to Google Calendar" button hands you a google.com wrapper with the real
+   feed buried in ?cid=. Unwrap it so either form can be pasted in. */
+function normalizeFeedUrl(raw){
+  let u = String(raw || "").trim();
+  const cid = u.match(/[?&]cid=([^&\s]+)/i);
+  if(cid) u = decodeURIComponent(cid[1]);
+  return u.replace(/^webcal:\/\//i, "https://").trim();
+}
 function unfoldICS(t){ return t.replace(/\r\n/g,"\n").replace(/\n[ \t]/g,""); }
 function icsText(v){
   return v.replace(/\\n/gi,", ").replace(/\\,/g,",").replace(/\\;/g,";").replace(/\\\\/g,"\\").trim();
@@ -1969,7 +1977,7 @@ function renderFeeds(){
 $("#feedWho").onchange = () => fillPlaces($("#feedKind"), $("#feedWho").value);
 $("#feedAdd").onclick = async () => {
   const msg = $("#feedMsg");
-  let url = $("#feedUrl").value.trim().replace(/^webcal:\/\//i, "https://");
+  let url = normalizeFeedUrl($("#feedUrl").value);
   if(!/^https?:\/\//i.test(url)){ msg.className = "msg err"; msg.textContent = "That does not look like a link."; return; }
   const feed = { id: hash32(url).slice(0,8), url, person: $("#feedWho").value,
                  kind: $("#feedKind").value, label: $("#feedLabel").value.trim(), m: Date.now() };
