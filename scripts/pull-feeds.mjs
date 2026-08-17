@@ -150,6 +150,18 @@ for (const feed of JSON.parse(FEEDS)) {
     continue;
   }
 
+  /* A feed that suddenly returns nothing is almost always a glitch upstream, not
+     every shift being cancelled at once. Deleting on that signal loses real data,
+     so hold what we have and report instead. */
+  const held = data.events.filter(e => e.src === feedId).length;
+  if (want.size === 0 && held > 0) {
+    console.error(`feed ${feed.label || feedId}: returned 0 events but ${held} are held; keeping them`);
+    const m0 = data.feeds.find(f => f.id === feedId);
+    if (m0) { m0.err = "the calendar came back empty, so the shifts were kept"; m0.m = now; }
+    failed++;
+    continue;
+  }
+
   for (const e of data.events.filter(e => e.src === feedId)) {
     const w = want.get(e.id);
     if (!w) { data.tomb.push({ k: e.id, t: now }); removed++; continue; }
