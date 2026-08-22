@@ -552,13 +552,13 @@ let PX = 0.9;
 
 /* Where a shift is. The list depends on whose block it is. */
 const PLACES = {
-  a: [["store","Store"], ["rso","RSO"], ["other","Other"]],
+  a: [["store","Store"], ["rso","RSO"], ["wollastons","Wollaston's"], ["other","Other"]],
   b: [["rso","RSO"], ["library","Library"], ["saxbys","Saxbys"], ["other","Other"]]
 };
-const PLACE_LABEL = {store:"Store", rso:"RSO", library:"Library", saxbys:"Saxbys", other:"Other"};
+const PLACE_LABEL = {store:"Store", rso:"RSO", library:"Library", saxbys:"Saxbys", wollastons:"Wollaston's", other:"Other"};
 /* Place colours need a second set for light mode, since the pale ones vanish on white. */
-const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"#3ddc97", other:"#8b93a7"};
-const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", other:"#475569"};
+const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"#3ddc97", wollastons:"#22d3ee", other:"#8b93a7"};
+const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", wollastons:"#0e7490", other:"#475569"};
 const placeName = k => PLACE_LABEL[k] || (k ? k[0].toUpperCase() + k.slice(1) : "Other");
 const placeColor = k => {
   const m = document.documentElement.dataset.theme === "light" ? PLACE_COLOR_LIGHT : PLACE_COLOR;
