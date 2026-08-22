@@ -125,6 +125,8 @@
   .ev.a{background:var(--a-soft);border-color:var(--a-line);color:var(--a-text)}
   .ev.b{background:var(--b-soft);border-color:var(--b-line);color:var(--b-text)}
   .ev.rep{border-style:dashed}
+  .ev.ghost{background:var(--free-soft);border:1px dashed var(--free);color:var(--free);
+    pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:11px}
   .ev strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ev em{font-style:normal;color:var(--faint);font-size:10px;display:block}
   .ev em.pl{font-weight:600;letter-spacing:.03em;text-transform:uppercase;font-size:9px;margin-top:1px}
@@ -1199,11 +1201,13 @@ function renderWeekBar(){
   $("#wkCount").textContent = `${n} block${n===1?"":"s"} · ${once} just this week`;
 }
 /* ---- edit a block after the fact ---- */
-function openEdit(e){
+/* isNew: the block does not exist yet, so Save adds it and Cancel discards it. */
+function openEdit(e, isNew){
   const wrap = el("div","modal");
   wrap.innerHTML = `<div class="sheet">
-    <h3>Edit this block</h3>
-    <p class="sub">Change what it's called, when it is, or whose it is.</p>
+    <h3>${isNew ? "New shift" : "Edit this block"}</h3>
+    <p class="sub">${isNew ? "Times come from where you tapped. Change anything before saving."
+                           : "Change what it's called, when it is, or whose it is."}</p>
     <div class="row" style="margin-bottom:12px">
       <div class="f"><label>Whose</label><select class="eWho">
         <option value="a">${escapeHTML(nameOf("a"))}</option>
@@ -1222,9 +1226,9 @@ function openEdit(e){
         <option value="every">Every week</option></select></div>
     </div>
     <div class="row">
-      <button class="btn eSave">Save changes</button>
+      <button class="btn eSave">${isNew ? "Add this shift" : "Save changes"}</button>
       <button class="btn ghost eCancel">Cancel</button>
-      <button class="btn danger eDel" style="margin-left:auto">Delete this block</button>
+      <button class="btn danger eDel" style="margin-left:auto${isNew ? ";display:none" : ""}">Delete this block</button>
     </div></div>`;
   document.body.appendChild(wrap);
 
@@ -1258,8 +1262,50 @@ function openEdit(e){
     e.start  = s; e.end = en;
     e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
     touch(e);
+    if(isNew) S.events.push(e);
     close(); renderAll(); syncSoon();
   };
+}
+
+/* ---- tap or drag empty space in a day to start a new shift ---- */
+function startCreate(ev, col, d, lo){
+  if(ev.button != null && ev.button !== 0) return;
+  if(ev.target.closest(".ev")) return;              // that is a move or resize, not a create
+  const rect = col.getBoundingClientRect();
+  const snap = v => Math.round(v / SNAP) * SNAP;
+  const atY  = y => Math.max(0, Math.min(1440, snap(lo + (y - rect.top) / PX)));
+  const y0 = ev.clientY, t0 = atY(y0);
+  const phone = isPhone();          // on touch a vertical drag means scroll, so tap only
+  let ghost = null, moved = false, aborted = false;
+
+  const draw = (a, b) => {
+    if(!ghost){ ghost = el("div","ev ghost"); ghost.style.left = "2px"; ghost.style.width = "calc(100% - 4px)";
+                col.appendChild(ghost); }
+    ghost.style.top = (Math.min(a,b) - lo) * PX + "px";
+    ghost.style.height = Math.max(2, Math.abs(b - a) * PX) + "px";
+    ghost.innerHTML = `<strong>${fmt(Math.min(a,b))} to ${fmt(Math.max(a,b))}</strong>`;
+  };
+  const move = m => {
+    if(Math.abs(m.clientY - y0) < 6) return;
+    if(phone){ aborted = true; return; }          // let the page scroll instead
+    moved = true; m.preventDefault();
+    draw(t0, atY(m.clientY));
+  };
+  const up = m => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    if(ghost) ghost.remove();
+    if(aborted) return;
+    let s = t0, e2 = moved ? atY(m.clientY) : t0 + 60;
+    if(e2 < s) [s, e2] = [e2, s];
+    if(e2 - s < SNAP) e2 = s + 60;                  // a plain tap gets a sensible default
+    if(e2 > 1440){ e2 = 1440; s = Math.min(s, 1440 - SNAP); }
+    const who = $("#fPerson").value;
+    openEdit({ id:newId(), person:who, day:d, start:s, end:e2, title:"",
+               kind:(PLACES[who] || PLACES.a)[0][0], week:VIEW, m:Date.now() }, true);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
 }
 
 /* ---- drag to move, drag the grips to resize. Snaps to 15 minutes. ---- */
@@ -1384,6 +1430,8 @@ function renderGrid(){
       const band = el("div","band", b-a >= 60 ? `<b>${dur(b-a)} free</b>` : "");
       band.style.top = (a-lo)*PX + "px"; band.style.height = (b-a)*PX + "px"; col.appendChild(band);
     }
+    col.style.cursor = "copy";
+    col.addEventListener("pointerdown", ev => startCreate(ev, col, d, lo));
     const dayEvents = weekEvents(VIEW).filter(x => x.day === d);
     const slots = new Map();
     ["a","b"].forEach(w => laneLayout(dayEvents.filter(x => x.person === w), slots));
