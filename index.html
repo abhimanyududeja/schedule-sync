@@ -144,18 +144,6 @@
   .slot.busy{background:#ffb45c1a;border-color:#ffb45c55}
   .slot span{color:var(--dim);font-variant-numeric:tabular-nums}
   .none{color:var(--faint);font-size:12px;font-style:italic}
-  .litem{display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid var(--line)}
-  .litem:first-of-type{border-top:0}
-  .litem input[type=checkbox]{width:17px;height:17px;flex:none;accent-color:var(--free)}
-  .litem.off .ltext b{text-decoration:line-through;color:var(--faint)}
-  .ltext{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;line-height:1.4}
-  .ltext b{font-weight:600;font-size:13.5px;outline:none;border-radius:4px;padding:1px 3px;margin:-1px -3px}
-  .ltext a{font-weight:600;font-size:13.5px;color:var(--a);text-decoration:none;outline:none;
-    border-radius:4px;padding:1px 3px;margin:-1px -3px}
-  .ltext a:hover{text-decoration:underline}
-  .ltext b:focus,.ltext a:focus{background:var(--panel2);box-shadow:0 0 0 2px var(--a-line)}
-  .ltext small{color:var(--faint);font-size:11.5px;width:100%;word-break:break-all}
-  .btn.mini{padding:5px 10px;font-size:12px;text-decoration:none;flex:none}
   .feedrow{display:flex;align-items:flex-start;gap:10px;background:var(--panel2);border:1px solid var(--line);
     border-radius:9px;padding:10px 12px;margin-bottom:8px}
   .feedrow .fmeta{flex:1;min-width:0;line-height:1.45}
@@ -340,8 +328,6 @@
   <button data-v="week" class="on">Week</button>
   <button data-v="free">Free Together</button>
   <button data-v="hours">Hours</button>
-  <button data-v="todo">To-do</button>
-  <button data-v="apps">Applications</button>
   <button data-v="photo">Photo Upload</button>
   <button data-v="import">Paste / Backup</button>
   <button data-v="events">All Blocks</button>
@@ -407,68 +393,6 @@
 <section class="view" id="v-hours">
   <div class="note" id="hoursNote"></div>
   <div class="hours" id="hours"></div>
-</section>
-
-<!-- ============ TO-DO ============ -->
-<section class="view" id="v-todo">
-  <div class="card">
-    <h2>Add something to do</h2>
-    <div class="row">
-      <div class="f" style="flex:1;min-width:240px"><label>What needs doing</label>
-        <input id="tdText" placeholder="e.g. finish CS 6180 writeup"></div>
-      <div class="f"><label>Whose</label>
-        <select id="tdWho"><option value="a">You</option><option value="b">Her</option></select></div>
-      <div class="f"><label>When</label><input id="tdDate" type="date"></div>
-      <button class="btn" id="tdAdd">Add</button>
-    </div>
-  </div>
-  <div class="row" style="margin-bottom:14px">
-    <div class="f"><label>Show</label>
-      <select id="tdFilter">
-        <option value="all">Both of us</option>
-        <option value="a">Just mine</option>
-        <option value="b">Just hers</option></select></div>
-    <label class="swap" style="margin:0;align-self:flex-end">
-      <input type="checkbox" id="tdDone"> show finished</label>
-  </div>
-  <div id="todoList"></div>
-</section>
-
-<!-- ============ APPLICATIONS ============ -->
-<section class="view" id="v-apps">
-  <div class="card">
-    <h2>Log an application</h2>
-    <div class="row">
-      <div class="f" style="flex:1;min-width:280px"><label>Paste the job link</label>
-        <input id="apUrl" placeholder="https://job-boards.greenhouse.io/notion/jobs/123"></div>
-      <div class="f"><label>Whose</label>
-        <select id="apWho"><option value="a">You</option><option value="b">Her</option></select></div>
-      <div class="f"><label>Applied on</label><input id="apDate" type="date"></div>
-      <button class="btn" id="apAdd">Add</button>
-    </div>
-    <div id="apMsg" class="msg"></div>
-    <p class="hint" style="margin-top:10px">
-      The company is worked out from the link. Job boards like LinkedIn and Handshake only name the board,
-      so type the company yourself when it asks. Every name stays editable.
-    </p>
-  </div>
-  <div class="stats" id="apStats"></div>
-  <div class="row" style="margin-bottom:14px">
-    <div class="f"><label>Show</label>
-      <select id="apFilter">
-        <option value="all">Both of us</option>
-        <option value="a">Just mine</option>
-        <option value="b">Just hers</option></select></div>
-    <div class="f"><label>Status</label>
-      <select id="apStatusFilter">
-        <option value="all">Any status</option>
-        <option value="applied">Applied</option>
-        <option value="screen">Phone screen</option>
-        <option value="interview">Interview</option>
-        <option value="offer">Offer</option>
-        <option value="rejected">Rejected</option></select></div>
-  </div>
-  <div id="appList"></div>
 </section>
 
 <!-- ============ PHOTO ============ -->
@@ -653,7 +577,7 @@ function fillPlaces(sel, person){
 }
 
 const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"Abhi", nameB:"Kashish",
-  wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[], feeds:[], apps:[], todos:[]});
+  wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[], feeds:[]});
 const newDeviceId = () => Math.random().toString(36).slice(2,8);
 let S = blank(), uid = 1, VIEW = "";
 /* Ids carry the device that made them, so two laptops never collide. */
@@ -720,8 +644,6 @@ function migrateSyncIds(d){
   });
   if(!Array.isArray(d.tomb)) d.tomb = [];
   if(!Array.isArray(d.feeds)) d.feeds = [];
-  if(!Array.isArray(d.apps)) d.apps = [];
-  if(!Array.isArray(d.todos)) d.todos = [];
   if(!d.sm) d.sm = now;
   d.v = 4;
   return d;
@@ -761,8 +683,6 @@ function finishLoad(){
   if(!S.did) S.did = newDeviceId();
   if(!Array.isArray(S.tomb)) S.tomb = [];
   if(!Array.isArray(S.feeds)) S.feeds = [];
-  if(!Array.isArray(S.apps)) S.apps = [];
-  if(!Array.isArray(S.todos)) S.todos = [];
   S.events.forEach(e => { if(e.week === undefined) e.week = null; if(!e.m) e.m = Date.now(); });
   const fixed = repairWeeks(S);
   if(fixed) setTimeout(() => {
@@ -789,18 +709,15 @@ function mergeStates(local, remote){
   [...(local.tomb||[]), ...(remote.tomb||[])].forEach(t => {
     if(!tomb.has(t.k) || tomb.get(t.k) < t.t) tomb.set(t.k, t.t);
   });
-  const mergeList = key => {
-    const byId = new Map();
-    [...(local[key]||[]), ...(remote[key]||[])].forEach(e => {
-      const prev = byId.get(e.id);
-      if(!prev || (e.m||0) > (prev.m||0)) byId.set(e.id, e);
-    });
-    return [...byId.values()].filter(e => {
-      const t = tomb.get(e.id);
-      return !(t && t >= (e.m||0));          // deleted after its last edit
-    });
-  };
-  const events = mergeList("events"), apps = mergeList("apps"), todos = mergeList("todos");
+  const byId = new Map();
+  [...(local.events||[]), ...(remote.events||[])].forEach(e => {
+    const prev = byId.get(e.id);
+    if(!prev || (e.m||0) > (prev.m||0)) byId.set(e.id, e);
+  });
+  const events = [...byId.values()].filter(e => {
+    const t = tomb.get(e.id);
+    return !(t && t >= (e.m||0));            // deleted after its last edit
+  });
   const feeds = new Map();
   [...(local.feeds||[]), ...(remote.feeds||[])].forEach(f => {
     const prev = feeds.get(f.id);
@@ -808,7 +725,7 @@ function mergeStates(local, remote){
   });
   const newer = (remote.sm||0) > (local.sm||0) ? remote : local;
   return Object.assign({}, local, {
-    events, apps, todos, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
+    events, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
     sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB,
     wakeA:newer.wakeA, sleepA:newer.sleepA, wakeB:newer.wakeB, sleepB:newer.sleepB
   });
@@ -1672,7 +1589,7 @@ function renderAll(){
   fillPlaces($("#feedKind"), $("#feedWho").value);
   $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
   $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
-  renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours(); renderTodos(); renderApps(); save();
+  renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours(); save();
   if(document.getElementById('feedState')) renderFeeds();
 }
 function del(id){
@@ -2075,61 +1992,6 @@ $("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
 $("#minGap").onchange = renderFree;
 $("#freeMode").onchange = renderFree;
 $("#scope").onchange = renderTable;
-["#tdFilter","#tdDone"].forEach(k => $(k).onchange = renderTodos);
-["#apFilter","#apStatusFilter"].forEach(k => $(k).onchange = renderApps);
-$("#tdDate").value = $("#apDate").value = isoOf(new Date());
-/* ---- working out who you applied to from a link ----
-   Job links hide the employer in three different places: the first path
-   segment on most applicant systems, the subdomain on Workday and friends,
-   and nowhere at all on job boards, where the link only names the board. */
-const ATS_IN_PATH = ["greenhouse.io","lever.co","ashbyhq.com","workable.com","breezy.hr",
-  "recruitee.com","smartrecruiters.com","jobvite.com","pinpointhq.com","teamtailor.com","rippling.com"];
-const ATS_IN_SUB = ["myworkdayjobs.com","myworkdaysite.com","icims.com","taleo.net","successfactors.com",
-  "sapsf.com","bamboohr.com","applytojob.com","paylocity.com","dayforcehcm.com","phenompeople.com"];
-const JOB_BOARDS = {"linkedin.com":"LinkedIn","indeed.com":"Indeed","glassdoor.com":"Glassdoor",
-  "ziprecruiter.com":"ZipRecruiter","joinhandshake.com":"Handshake","handshake.com":"Handshake",
-  "monster.com":"Monster","dice.com":"Dice","wellfound.com":"Wellfound","angel.co":"Wellfound",
-  "simplify.jobs":"Simplify","builtin.com":"Built In","northeastern.edu":"NUworks","otta.com":"Otta"};
-
-function titleCase(x){
-  return String(x||"").replace(/[-_+.]+/g," ").replace(/\s+/g," ").trim()
-    .split(" ").map(w => w.length <= 3 && w === w.toUpperCase() ? w
-                        : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-function toUrl(raw){
-  const v = String(raw||"").trim();
-  if(!v) return null;
-  try{ return new URL(v); }catch(e){}
-  try{ return new URL("https://" + v.replace(/^\/+/,"")); }catch(e){ return null; }
-}
-/* Returns {name, host, board} — board set when the link only identifies a job
-   board, so the UI can ask you who it was actually for. */
-function readApplication(raw){
-  const u = toUrl(raw);
-  if(!u) return null;
-  const host = u.hostname.replace(/^www\./,"").toLowerCase();
-  const seg = u.pathname.split("/").filter(Boolean);
-  const under = d => host === d || host.endsWith("." + d);
-
-  for(const d of ATS_IN_PATH) if(under(d)){
-    const skip = new Set(["jobs","job","careers","embed","o","p","apply","company","companies","en","us"]);
-    const bit = seg.find(x => !skip.has(x.toLowerCase()) && !/^\d+$/.test(x));
-    if(bit) return {name:titleCase(bit), host, url:u.href};
-  }
-  for(const d of ATS_IN_SUB) if(under(d)){
-    const sub = host.slice(0, host.length - d.length - 1).split(".")[0];
-    if(sub && !["www","jobs","careers"].includes(sub)) return {name:titleCase(sub), host, url:u.href};
-  }
-  for(const d in JOB_BOARDS) if(under(d)) return {name:"", host, url:u.href, board:JOB_BOARDS[d]};
-
-  const bits = host.split(".");
-  let core = bits.length > 1 ? bits[bits.length - 2] : host;
-  if(core.length <= 3 && bits.length > 2) core = bits[bits.length - 3];   // .co.uk and friends
-  if(["careers","jobs","apply","work","talent","boards"].includes(core) && bits.length > 2)
-    core = bits[bits.length - 3];
-  return {name:titleCase(core), host, url:u.href};
-}
-
 /* ---- job calendar feeds: UI ---- */
 function renderFeeds(){
   const host = $("#feedList"); host.innerHTML = "";
@@ -2189,152 +2051,6 @@ $("#feedRefresh").onclick = async () => {
   await refreshFeeds();
   msg.textContent = "Refreshed " + new Date().toLocaleTimeString() + ".";
 };
-
-/* ---- shared helpers for the two list features ---- */
-const STATUS = {applied:"Applied", screen:"Phone screen", interview:"Interview",
-                offer:"Offer", rejected:"Rejected"};
-const STATUS_COLOR = {applied:"--dim", screen:"--warn", interview:"--a",
-                      offer:"--free", rejected:"--err"};
-const todayISO = () => isoOf(new Date());
-function dropItem(key, id){
-  S.tomb.push({k:id, t:Date.now()});
-  S[key] = S[key].filter(x => x.id !== id);
-  renderAll(); syncSoon();
-}
-/* "Today", "Tomorrow", "Yesterday", else "Tue 25 Aug" */
-function dayLabel(iso){
-  const d = parseISO(iso), t = parseISO(todayISO());
-  const n = Math.round((d - t) / 86400000);
-  if(n === 0) return "Today";
-  if(n === 1) return "Tomorrow";
-  if(n === -1) return "Yesterday";
-  return d.toLocaleDateString(undefined, {weekday:"short", day:"numeric", month:"short"});
-}
-function groupByDate(rows){
-  const g = new Map();
-  rows.forEach(r => { if(!g.has(r.date)) g.set(r.date, []); g.get(r.date).push(r); });
-  return g;
-}
-
-/* ---- to-do ---- */
-$("#tdAdd").onclick = () => {
-  const text = $("#tdText").value.trim();
-  if(!text) return $("#tdText").focus();
-  S.todos.push({id:newId(), who:$("#tdWho").value, text, date:$("#tdDate").value || todayISO(),
-                done:false, m:Date.now()});
-  $("#tdText").value = "";
-  renderAll(); syncSoon();
-};
-$("#tdText").onkeydown = e => { if(e.key === "Enter") $("#tdAdd").click(); };
-
-function renderTodos(){
-  const host = $("#todoList"); if(!host) return;
-  const who = $("#tdFilter").value, showDone = $("#tdDone").checked;
-  let rows = S.todos.filter(t => (who === "all" || t.who === who) && (showDone || !t.done));
-  if(!rows.length){
-    host.innerHTML = `<div class="card"><div class="none">Nothing on the list${
-      showDone ? "" : " — tick <b>show finished</b> to see what's done"}.</div></div>`;
-    return;
-  }
-  rows.sort((a,b) => (a.done - b.done) || a.date.localeCompare(b.date) || (a.m||0) - (b.m||0));
-  const today = todayISO();
-  host.innerHTML = "";
-  groupByDate(rows).forEach((items, date) => {
-    const late = date < today && items.some(i => !i.done);
-    const card = el("div","card");
-    card.appendChild(el("h2","", `${escapeHTML(dayLabel(date))}${
-      late ? ' <span class="tag" style="color:var(--warn);border-color:var(--warn)">overdue</span>' : ""}`));
-    items.forEach(t => {
-      const row = el("div","litem" + (t.done ? " off" : ""));
-      const box = el("input"); box.type = "checkbox"; box.checked = !!t.done;
-      box.onchange = () => { t.done = box.checked; touch(t); renderAll(); syncSoon(); };
-      const txt = el("div","ltext");
-      txt.innerHTML = `<b>${escapeHTML(t.text)}</b><span class="pill"><span class="dot ${t.who}"></span>${escapeHTML(nameOf(t.who))}</span>`;
-      txt.querySelector("b").contentEditable = "true";
-      txt.querySelector("b").onblur = ev => {
-        const v = ev.target.textContent.trim();
-        if(v && v !== t.text){ t.text = v; touch(t); syncSoon(); } else ev.target.textContent = t.text;
-      };
-      const x = el("button","x","✕"); x.onclick = () => dropItem("todos", t.id);
-      row.appendChild(box); row.appendChild(txt); row.appendChild(x);
-      card.appendChild(row);
-    });
-    host.appendChild(card);
-  });
-}
-
-/* ---- applications ---- */
-$("#apAdd").onclick = () => {
-  const msg = $("#apMsg"), raw = $("#apUrl").value.trim();
-  const info = readApplication(raw);
-  if(!info){ msg.className = "msg err"; msg.textContent = "That does not look like a link."; return; }
-  if(S.apps.some(a => a.url === info.url)){
-    msg.className = "msg err"; msg.textContent = "That exact link is already logged."; return; }
-  let name = info.name;
-  if(!name){
-    name = (prompt(`That link only names ${info.board}, not the employer.\n\nWho did you apply to?`) || "").trim();
-    if(!name){ msg.className = "msg err"; msg.textContent = "Cancelled — nothing was added."; return; }
-  }
-  S.apps.push({id:newId(), who:$("#apWho").value, url:info.url, host:info.host, name,
-               board:info.board || "", date:$("#apDate").value || todayISO(),
-               status:"applied", note:"", m:Date.now()});
-  $("#apUrl").value = "";
-  msg.className = "msg"; msg.textContent = `Logged ${name}.`;
-  renderAll(); syncSoon();
-};
-$("#apUrl").onkeydown = e => { if(e.key === "Enter") $("#apAdd").click(); };
-
-function renderApps(){
-  const host = $("#appList"); if(!host) return;
-  const who = $("#apFilter").value, st = $("#apStatusFilter").value;
-  const all = S.apps.filter(a => who === "all" || a.who === who);
-  const rows = all.filter(a => st === "all" || a.status === st);
-
-  const wkAgo = isoOf(addDays(new Date(), -7));
-  const live = all.filter(a => a.status !== "rejected").length;
-  $("#apStats").innerHTML = `
-    <div class="stat"><b>${all.length}</b><span>logged</span></div>
-    <div class="stat"><b>${all.filter(a => a.date >= wkAgo).length}</b><span>in the last 7 days</span></div>
-    <div class="stat"><b>${live}</b><span>still open</span></div>
-    <div class="stat"><b>${all.filter(a => a.status === "interview" || a.status === "offer").length}</b><span>interview or offer</span></div>`;
-
-  if(!rows.length){
-    host.innerHTML = `<div class="card"><div class="none">Nothing here yet. Paste a job link above.</div></div>`;
-    return;
-  }
-  rows.sort((a,b) => b.date.localeCompare(a.date) || (b.m||0) - (a.m||0));
-  host.innerHTML = "";
-  groupByDate(rows).forEach((items, date) => {
-    const card = el("div","card");
-    card.appendChild(el("h2","", `${escapeHTML(dayLabel(date))} <span class="tag">${items.length}</span>`));
-    items.forEach(a => {
-      const row = el("div","litem");
-      const txt = el("div","ltext");
-      txt.innerHTML =
-        `<a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.name)}</a>` +
-        `<span class="pill"><span class="dot ${a.who}"></span>${escapeHTML(nameOf(a.who))}</span>` +
-        `<small>${escapeHTML(a.host)}${a.board ? " · via " + escapeHTML(a.board) : ""}</small>`;
-      const link = txt.querySelector("a");
-      link.contentEditable = "true";
-      link.onclick = ev => { if(ev.metaKey || ev.ctrlKey) return; ev.preventDefault(); link.focus(); };
-      link.onblur = ev => {
-        const v = ev.target.textContent.trim();
-        if(v && v !== a.name){ a.name = v; touch(a); syncSoon(); } else ev.target.textContent = a.name;
-      };
-      const open = el("a","btn ghost mini","Open"); open.href = a.url;
-      open.target = "_blank"; open.rel = "noopener noreferrer";
-      const sel = el("select","cell");
-      Object.entries(STATUS).forEach(([v,t]) => { const o = el("option"); o.value = v; o.textContent = t;
-        if(a.status === v) o.selected = true; sel.appendChild(o); });
-      sel.style.color = `var(${STATUS_COLOR[a.status] || "--dim"})`;
-      sel.onchange = () => { a.status = sel.value; touch(a); renderAll(); syncSoon(); };
-      const x = el("button","x","✕"); x.onclick = () => dropItem("apps", a.id);
-      row.appendChild(txt); row.appendChild(open); row.appendChild(sel); row.appendChild(x);
-      card.appendChild(row);
-    });
-    host.appendChild(card);
-  });
-}
 
 /* ---- theme: auto (follow the OS) → light → dark → auto ---- */
 const TKEY = "schedsync-theme";
