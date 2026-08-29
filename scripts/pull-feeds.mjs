@@ -114,7 +114,9 @@ function blocksFor(feed, feedId, ev) {
   return out;
 }
 
-const head = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" };
+// X-Room matches the row-level policy that scopes access to this room only.
+const head = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+               "X-Room": ROOM_CODE, "Content-Type": "application/json" };
 const base = `${SUPABASE_URL.replace(/\/+$/, "")}/rest/v1/schedules`;
 
 const res = await fetch(`${base}?id=eq.${encodeURIComponent(ROOM_CODE)}&select=data`, { headers: head });

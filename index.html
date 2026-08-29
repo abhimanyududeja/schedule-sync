@@ -684,6 +684,7 @@ function finishLoad(){
   if(!Array.isArray(S.tomb)) S.tomb = [];
   if(!Array.isArray(S.feeds)) S.feeds = [];
   S.events.forEach(e => { if(e.week === undefined) e.week = null; if(!e.m) e.m = Date.now(); });
+  compactTomb(S);
   const fixed = repairWeeks(S);
   if(fixed) setTimeout(() => {
     const m = $("#expMsg");
@@ -851,10 +852,36 @@ async function refreshFeeds(quiet){
   if(!quiet) renderFeeds();
 }
 
+/* X-Room lets the database policy scope every request to this room alone, so a
+   leaked key cannot list or read anyone else's calendar. */
 const sHead = () => ({apikey:SYNC.key, Authorization:"Bearer " + SYNC.key,
-                      "Content-Type":"application/json"});
+                      "X-Room":SYNC.room, "Content-Type":"application/json"});
 const sBase = () => SYNC.url.replace(/\/+$/,"") + "/rest/v1/schedules";
 
+/* Deletions are remembered so a stale device cannot resurrect them, but kept
+   for ever they outgrow the real data. Two months is far longer than either
+   laptop is ever offline. */
+const TOMB_TTL = 60 * 24 * 60 * 60 * 1000;
+function compactTomb(d){
+  if(!Array.isArray(d.tomb)) return 0;
+  const cut = Date.now() - TOMB_TTL, before = d.tomb.length;
+  d.tomb = d.tomb.filter(t => t.t >= cut);
+  return before - d.tomb.length;
+}
+/* Everything that actually travels between the two laptops. Used to decide
+   whether a push is worth making at all. */
+const syncSig = d => JSON.stringify([d.events, d.tomb, d.feeds, d.sm,
+  d.nameA, d.nameB, d.wakeA, d.sleepA, d.wakeB, d.sleepB]);
+
+/* A stamp check is ~60 bytes; the document is ~17 KB. Only pull the document
+   when the stamp says it changed. */
+async function syncStamp(){
+  const r = await fetch(`${sBase()}?id=eq.${encodeURIComponent(SYNC.room)}&select=updated_at`,
+                        {headers:sHead(), cache:"no-store"});
+  if(!r.ok) throw new Error("read failed (" + r.status + ")");
+  const rows = await r.json();
+  return rows.length ? rows[0].updated_at : null;
+}
 async function syncPull(){
   const r = await fetch(`${sBase()}?id=eq.${encodeURIComponent(SYNC.room)}&select=data`, {headers:sHead()});
   if(!r.ok) throw new Error("read failed (" + r.status + ")");
@@ -867,23 +894,40 @@ async function syncPush(state){
     body:JSON.stringify([{id:SYNC.room, data:state, updated_at:new Date().toISOString()}])});
   if(!r.ok) throw new Error("write failed (" + r.status + ")");
 }
+let seenStamp = null, dirty = false;
 async function syncNow(quiet){
   if(!SYNC.on || syncBusy) return;
   if(!SYNC.url || !SYNC.key || !SYNC.room) return;
   syncBusy = true;
   try{
-    const remote = await syncPull();
-    const before = JSON.stringify({e:S.events, t:S.tomb});
+    const stamp = await syncStamp();
+    if(stamp && stamp === seenStamp && !dirty){        // nothing changed either side
+      lastSync = Date.now();
+      syncStatus(`in sync · ${new Date(lastSync).toLocaleTimeString()}`);
+      return;
+    }
+    const remote = stamp ? await syncPull() : null;
+    const before = syncSig(S);
+    let theirs = null;
     if(remote){
       const inbound = migrateSyncIds(migrateWeekStart(remote));
       repairWeeks(inbound);                   // her laptop may still be sending stale week keys
+      compactTomb(inbound);
+      theirs = syncSig(inbound);
       const merged = mergeStates(S, inbound);
       merged.did = S.did;                     // keep our own device identity
       S = merged;
     }
     repairWeeks(S);
-    const after = JSON.stringify({e:S.events, t:S.tomb});
-    await syncPush(S);
+    compactTomb(S);
+    const after = syncSig(S);
+    if(dirty || theirs === null || after !== theirs){
+      await syncPush(S);
+      seenStamp = await syncStamp();          // our own write, so do not re-pull it
+      dirty = false;
+    }else{
+      seenStamp = stamp;
+    }
     lastSync = Date.now();
     if(before !== after){ save(); renderAll(); }
     syncStatus(`in sync · ${new Date(lastSync).toLocaleTimeString()}`);
@@ -892,6 +936,7 @@ async function syncNow(quiet){
   }finally{ syncBusy = false; }
 }
 function syncSoon(){                          // push local edits quickly, but batched
+  dirty = true;
   if(!SYNC.on) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => syncNow(true), 800);
