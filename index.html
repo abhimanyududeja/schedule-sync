@@ -569,8 +569,8 @@ const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"
 const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", wollastons:"#0e7490", mob:"#b91c1c", tadavo:"#9a3412", other:"#475569"};
 /* Campus jobs and co-ops are counted separately: they sit under different
    rules and it is the split you actually want to read. */
-const PLACE_GROUP = {store:"campus", rso:"campus", library:"campus", saxbys:"campus",
-                     wollastons:"campus", mob:"coop", tadavo:"coop", other:"other"};
+const PLACE_GROUP = {rso:"campus", library:"campus", saxbys:"campus", wollastons:"campus",
+                     store:"off", mob:"coop", tadavo:"coop", other:"other"};
 const placeGroup = k => PLACE_GROUP[k] || "other";
 const placeName = k => PLACE_LABEL[k] || (k ? k[0].toUpperCase() + k.slice(1) : "Other");
 const placeColor = k => {
@@ -1589,7 +1589,7 @@ function renderHours(){
     const last  = Object.values(hoursFor(w, prevIso)).reduce((t,v) => t + v.mins, 0);
     grand += total;
     const diff = total - last;
-    const split = {campus:0, coop:0, other:0};
+    const split = {campus:0, off:0, coop:0, other:0};
     rows.forEach(([k,v]) => split[placeGroup(k)] += v.mins);
     const card = el("div","hcard");
     card.innerHTML =
@@ -1599,6 +1599,7 @@ function renderHours(){
               : ` ${diff > 0 ? "+" : "−"}${dur(Math.abs(diff))} vs last week`) : ""}</small></div>
        <div class="split">
          <div><span>On campus</span><b>${dur(split.campus)}</b></div>
+         ${split.off ? `<div><span>Off campus</span><b>${dur(split.off)}</b></div>` : ""}
          <div><span>Co-op</span><b>${dur(split.coop)}</b></div>
          ${split.other ? `<div><span>Other</span><b>${dur(split.other)}</b></div>` : ""}
          <div class="tot-cell"><span>Total</span><b>${dur(total)}</b></div>
