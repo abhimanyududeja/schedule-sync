@@ -163,6 +163,9 @@
   .split div.tot-cell{flex:1 0 100%;border-color:var(--a-line);background:var(--a-soft)}
   .split span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
   .split b{font-size:15px;font-weight:650;font-variant-numeric:tabular-nums}
+  .split div.over{border-color:var(--warn);background:#ffb45c1f}
+  .split div.over span,.split div.over b{color:var(--warn)}
+  .split div.over em{display:block;font-style:normal;font-size:10px;color:var(--warn);margin-top:2px}
   .hrow{margin-bottom:12px}
   .hrow .lbl{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:5px}
   .hrow .lbl span{color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -572,6 +575,7 @@ const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", sa
 const PLACE_GROUP = {rso:"campus", library:"campus", saxbys:"campus", wollastons:"campus",
                      store:"off", mob:"coop", tadavo:"coop", other:"other"};
 const placeGroup = k => PLACE_GROUP[k] || "other";
+const CAMPUS_CAP = 20 * 60;        // minutes of on-campus work allowed in a week
 const placeName = k => PLACE_LABEL[k] || (k ? k[0].toUpperCase() + k.slice(1) : "Other");
 const placeColor = k => {
   const m = document.documentElement.dataset.theme === "light" ? PLACE_COLOR_LIGHT : PLACE_COLOR;
@@ -1598,7 +1602,9 @@ function renderHours(){
          last ? (diff === 0 ? " same as last week"
               : ` ${diff > 0 ? "+" : "−"}${dur(Math.abs(diff))} vs last week`) : ""}</small></div>
        <div class="split">
-         <div><span>On campus</span><b>${dur(split.campus)}</b></div>
+         <div class="${split.campus > CAMPUS_CAP ? "over" : ""}"><span>On campus</span>
+           <b>${dur(split.campus)}</b>${split.campus > CAMPUS_CAP
+             ? `<em>${dur(split.campus - CAMPUS_CAP)} over the 20h limit</em>` : ""}</div>
          ${split.off ? `<div><span>Off campus</span><b>${dur(split.off)}</b></div>` : ""}
          <div><span>Co-op</span><b>${dur(split.coop)}</b></div>
          ${split.other ? `<div><span>Other</span><b>${dur(split.other)}</b></div>` : ""}
@@ -1613,7 +1619,16 @@ function renderHours(){
        : `<div class="none">No shifts this week.</div>`);
     host.appendChild(card);
   });
+  const over = ["a","b"].map(w => {
+    const mins = Object.entries(hoursFor(w, VIEW))
+      .filter(([k]) => placeGroup(k) === "campus")
+      .reduce((t,[,v]) => t + v.mins, 0);
+    return {who:nameOf(w), mins};
+  }).filter(x => x.mins > CAMPUS_CAP);
+  $("#hoursNote").className = over.length ? "note warn" : "note";
   $("#hoursNote").innerHTML =
+    (over.length ? `<b>Over the 20h on-campus limit this week:</b> ` +
+       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)}`).join(", ") + `. ` : "") +
     `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)}. ${grand ? dur(grand) : "0h"} worked between you. ` +
     `Use the ‹ › arrows at the top to check another week.`;
 }
