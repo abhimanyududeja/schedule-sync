@@ -1088,7 +1088,10 @@ function intersect(p, q){
   return out;
 }
 /* every block that applies to the week on screen: repeating ones + that week's one-offs */
-const weekEvents = (iso) => S.events.filter(e => e.week === null || e.week === iso);
+/* A repeating block can carry a start week, so a job that began partway
+   through the year does not appear in every week before it existed. */
+const weekEvents = (iso) => S.events.filter(e =>
+  e.week === null ? (!e.from || iso >= e.from) : e.week === iso);
 const busyOf = (who,d) => merge(weekEvents(VIEW).filter(e => e.person===who && e.day===d).map(e => [e.start,e.end]));
 /* A blank or inverted waking window would silently zero out the whole week,
    so fall back to the full day and let badWake() surface the problem. */
@@ -1284,6 +1287,7 @@ function openEdit(e, isNew){
       <div class="f"><label>Repeats</label><select class="eRep">
         <option value="once">Just this week</option>
         <option value="every">Every week</option></select></div>
+      <div class="f"><label>Starting</label><select class="eFrom"></select></div>
     </div>
     <div class="row">
       <button class="btn eSave">${isNew ? "Add this shift" : "Save changes"}</button>
@@ -1301,6 +1305,20 @@ function openEdit(e, isNew){
   q("eStart").value = toHHMM(e.start);
   q("eEnd").value = toHHMM(e.end);
   q("eRep").value = e.week === null ? "every" : "once";
+  const fromSel = q("eFrom");
+  const fill = () => {
+    fromSel.innerHTML = "";
+    const opts = [["", "always (every week)"]];
+    for(let i = -8; i <= 8; i++){
+      const iso = isoOf(addDays(parseISO(thisWeekStart()), i*7));
+      opts.push([iso, weekTitle(iso) + ", " + weekDates(iso)]);
+    }
+    opts.forEach(([v,t]) => { const o = el("option"); o.value = v; o.textContent = t;
+      if((e.from || "") === v) o.selected = true; fromSel.appendChild(o); });
+  };
+  fill();
+  const syncFrom = () => fromSel.closest(".f").style.display = q("eRep").value === "every" ? "" : "none";
+  q("eRep").addEventListener("change", syncFrom); syncFrom();
   q("eWho").onchange = () => fillPlaces(q("eKind"), q("eWho").value);
   setTimeout(() => q("eTitle").focus(), 30);
 
@@ -1321,6 +1339,8 @@ function openEdit(e, isNew){
     e.day    = +q("eDay").value;
     e.start  = s; e.end = en;
     e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
+    if(e.week === null){ const f = q("eFrom").value; if(f) e.from = f; else delete e.from; }
+    else delete e.from;
     touch(e);
     if(isNew) S.events.push(e);
     close(); renderAll(); syncSoon();
@@ -1510,7 +1530,9 @@ function renderGrid(){
       n.appendChild(el("i","grip bot"));
       n.dataset.id = e.id;
       n.title = `${nameOf(e.person)} · ${placeName(e.kind)} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
-                (e.week === null ? "\nRepeats every week" : "\nJust this week") + "\nClick to edit";
+                (e.week === null ? (e.from ? "\nRepeats every week from " + weekDates(e.from)
+                                            : "\nRepeats every week")
+                                 : "\nJust this week") + "\nClick to edit";
       n.onclick = ev => {
         if(dragMoved) return;                       // finished a drag, not a click
         if(ev.target.classList.contains("grip")) return;
