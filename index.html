@@ -303,6 +303,7 @@
   .cell{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12.5px}
   .cell:focus{outline:none;border-color:var(--a)}
   .cell.wide{width:100%;min-width:170px}
+  .cell.unmatched{border-color:var(--warn)}
   .cellwrap{display:flex;align-items:center;gap:5px;white-space:nowrap;color:var(--faint)}
 </style>
 </head>
@@ -623,6 +624,24 @@ const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
 const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
 /* Only RSO posts have stations; every other workplace uses the free-text name. */
 const hasStations = kind => kind === "rso";
+/* Work out which station a scanned line is talking about. Shift portals write
+   things like "407 Huntington/ A @ RSO Boston" or "Kerr Hall/ Midnight", so
+   look for any station name inside the text and take the longest match, which
+   keeps "West Village A North" from losing to "West Village A". */
+const normStation = x => String(x||"").toLowerCase()
+  .replace(/@?\s*rso\s+boston/g," ")          // the org name is on every line; it is not a station
+  .replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+function matchStation(text){
+  const t = normStation(text);
+  if(!t) return "";
+  let best = "", bestLen = 0;
+  for(const [name] of RSO_STATIONS){
+    const k = normStation(name);
+    if(!k) continue;
+    if((" "+t+" ").includes(" "+k+" ") && k.length > bestLen){ best = name; bestLen = k.length; }
+  }
+  return best;
+}
 function fillStations(sel, current){
   sel.innerHTML = "";
   const none = el("option"); none.value = ""; none.textContent = "— pick a station —"; sel.appendChild(none);
@@ -1790,12 +1809,13 @@ function stageLines(lines, source){
     const r = parseLine(ln);
     if(!r) return;
     if(r.error){ if(ln.trim()) bad.push(`line ${i+1}: ${r.error}: “${ln.trim()}”`); return; }
+    const st = matchStation(r.title);        // "407 Huntington/ A @ RSO Boston" -> 407 Huntington
     r.days.forEach(d => {
       if(r.overnight){                       // 10pm–2am becomes tonight's tail + tomorrow's head
-        rows.push({day:d, start:r.start, end:1440, title:r.title, pinned:r.pinned || null});
-        rows.push({day:(d+1)%7, start:0, end:r.end, title:r.title, pinned:r.pinned || null, rollover:d === 6});
+        rows.push({day:d, start:r.start, end:1440, title:r.title, station:st, pinned:r.pinned || null});
+        rows.push({day:(d+1)%7, start:0, end:r.end, title:r.title, station:st, pinned:r.pinned || null, rollover:d === 6});
       }else{
-        rows.push({day:d, start:r.start, end:r.end, title:r.title, pinned:r.pinned || null});
+        rows.push({day:d, start:r.start, end:r.end, title:r.title, station:st, pinned:r.pinned || null});
       }
     });
   });
@@ -1854,10 +1874,14 @@ function renderReview(bad, source){
       const titleTd = el("td"), ti = el("input","cell wide");
       ti.type = "text"; ti.value = r.title; ti.placeholder = "(uses the place name)";
       ti.oninput = () => { r.title = ti.value; };
-      titleTd.appendChild(ti);
+      const stSel = el("select","cell");
+      fillStations(stSel, r.station || "");
+      stSel.onchange = () => { r.station = stSel.value; sync(); };
+      if(!r.station) stSel.classList.add("unmatched");
+      titleTd.appendChild(ti); titleTd.appendChild(stSel);
 
       const td = el("td"), x = el("button","x","✕");
-      x.onclick = () => { STAGE.splice(i,1); paint(); sync(); };
+      x.onclick = () => { STAGE.splice(i,1); paint(); showStations(); sync(); };
       td.appendChild(x);
       [dayTd, timeTd, lenTd, titleTd, td].forEach(c => tr.appendChild(c));
       body.appendChild(tr);
@@ -1903,6 +1927,23 @@ function renderReview(bad, source){
     rvKind.disabled = false; fillPlaces(rvKind, stageWho);   // her list differs from yours
     sync();
   });
+  const rvKind2 = box.querySelector(".rvKind");
+  const showStations = () => {
+    const on = hasStations(rvKind2.value);
+    box.querySelectorAll("tbody select.cell").forEach(n => {});
+    box.querySelectorAll("tbody tr").forEach(tr => {
+      const cell = tr.children[3];
+      const inp = cell.querySelector("input"), sel = cell.querySelector("select");
+      if(inp) inp.style.display = on ? "none" : "";
+      if(sel) sel.style.display = on ? "" : "none";
+    });
+    const miss = on ? STAGE.filter(r => !r.station).length : 0;
+    let note = box.querySelector(".stationNote");
+    if(!note){ note = el("div","msg warn stationNote"); box.querySelector(".rvtable").after(note); }
+    note.style.display = miss ? "" : "none";
+    note.textContent = miss ? `${miss} row${miss===1?"":"s"} could not be matched to a station — pick one for each.` : "";
+  };
+  rvKind2.addEventListener("change", showStations);
   box.querySelector(".rvCancel").onclick = () => { STAGE = []; box.remove(); };
   addBtn.onclick = () => {
     const rep = box.querySelector(".rvRepeat").value, kind = box.querySelector(".rvKind").value;
@@ -1912,7 +1953,12 @@ function renderReview(bad, source){
       const pin = (r.pinned && !ignoreDates) ? r.pinned : null;
       let wk = rep === "every" ? null : (pin || target);
       if(r.rollover && wk) wk = isoOf(addDays(parseISO(wk), 7));   // Sun night spills into next week
-      if(r.end > r.start) addEvent(stageWho, r.day, r.start, r.end, r.title || placeName(kind), kind, wk);
+      if(r.end > r.start){
+        const useStation = hasStations(kind) && r.station;
+        addEvent(stageWho, r.day, r.start, r.end,
+                 useStation ? r.station : (r.title || placeName(kind)), kind, wk);
+        if(useStation) S.events[S.events.length-1].station = r.station;
+      }
     });
     const n = STAGE.length, who = nameOf(stageWho);
     const landed = rep === "every" ? VIEW : target;
@@ -1924,7 +1970,7 @@ function renderReview(bad, source){
     document.querySelector('nav.tabs button[data-v="week"]').click();
     window.scrollTo({top:0, behavior:"smooth"});
   };
-  paint(); sync();
+  paint(); showStations(); sync();
   box.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
