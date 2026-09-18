@@ -354,7 +354,8 @@
       <div class="f"><label>Whose</label>
         <select id="fPerson"><option value="a">You</option><option value="b">Her</option></select></div>
       <div class="f"><label>Where</label><select id="fKind"></select></div>
-      <div class="f"><label>What <span style="text-transform:none">(optional)</span></label>
+      <div class="f" id="fStationWrap"><label>Station</label><select id="fStation"></select></div>
+      <div class="f" id="fTitleWrap"><label>What <span style="text-transform:none">(optional)</span></label>
         <input id="fTitle" placeholder="e.g. front desk" style="width:170px"></div>
       <div class="f"><label>Repeats</label>
         <select id="fRepeat">
@@ -563,7 +564,7 @@ let PX = 0.9;
 
 /* Where a shift is. The list depends on whose block it is. */
 const PLACES = {
-  a: [["mob","Mob (co-op)"], ["store","Store"], ["rso","RSO"], ["wollastons","Wollaston's"], ["other","Other"]],
+  a: [["mob","Mob (co-op)"], ["store","Store"], ["rso","RSO"], ["other","Other"]],
   b: [["tadavo","Tadavo (co-op)"], ["rso","RSO"], ["library","Library"], ["saxbys","Saxbys"], ["other","Other"]]
 };
 const PLACE_LABEL = {store:"Store", rso:"RSO", library:"Library", saxbys:"Saxbys", wollastons:"Wollaston's", mob:"Mob (co-op)", tadavo:"Tadavo (co-op)", other:"Other"};
@@ -572,6 +573,62 @@ const PLACE_COLOR = {store:"#ffb45c", rso:"#7cc4ff", library:"#c39bff", saxbys:"
 const PLACE_COLOR_LIGHT = {store:"#a35a06", rso:"#1d4ed8", library:"#6d28d9", saxbys:"#047857", wollastons:"#0e7490", mob:"#b91c1c", tadavo:"#9a3412", other:"#475569"};
 /* Campus jobs and co-ops are counted separately: they sit under different
    rules and it is the split you actually want to read. */
+const RSO_STATIONS = [
+  ["Burstein Hall","SS"],
+  ["Davenport A","DS"],
+  ["Davenport B","DS"],
+  ["East Village","DS"],
+  ["East Village Stairwell","SS"],
+  ["Hastings","SS"],
+  ["INV Northeast","DS"],
+  ["INV Northwest","DS"],
+  ["Kennedy Hall","SS"],
+  ["Kerr Hall","SS"],
+  ["Light Hall","SS"],
+  ["Loftman Hall","SS"],
+  ["Melvin Hall","SS"],
+  ["Rubenstein Hall","SS"],
+  ["Smith Hall","DS"],
+  ["Speare East","SS"],
+  ["Speare Lobby","SS"],
+  ["Speare West","SS"],
+  ["Stetson East","DS"],
+  ["Stetson West Front","DS"],
+  ["Stetson West Rear","DS"],
+  ["West Village A North","DS"],
+  ["West Village A South","DS"],
+  ["West Village B","DS"],
+  ["West Village C","SS"],
+  ["West Village E","SS"],
+  ["West Village F","SS"],
+  ["West Village G","SS"],
+  ["West Village H","DS"],
+  ["White Hall","DS"],
+  ["Willis Hall","DS"],
+  ["60 Belvidere St.","SS"],
+  ["110 St Stephen","SS"],
+  ["116 St Stephen","SS"],
+  ["319 Huntington","SS"],
+  ["337 Huntington","SS"],
+  ["407 Huntington","SS"],
+  ["780 Columbus","SS"],
+  ["Coventry","SS"],
+  ["Hamper Station Duty","SS"],
+  ["Husky Card Services","SS"],
+  ["Oakland Dispatch","SS"],
+  ["Proctor Shadow","SS"],
+  ["RSO","SS"],
+];
+const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
+const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
+/* Only RSO posts have stations; every other workplace uses the free-text name. */
+const hasStations = kind => kind === "rso";
+function fillStations(sel, current){
+  sel.innerHTML = "";
+  const none = el("option"); none.value = ""; none.textContent = "— pick a station —"; sel.appendChild(none);
+  RSO_STATIONS.forEach(([n,t]) => { const o = el("option"); o.value = n; o.textContent = `${n} (${t})`;
+    if(n === current) o.selected = true; sel.appendChild(o); });
+}
 const PLACE_GROUP = {rso:"campus", library:"campus", saxbys:"campus", wollastons:"campus",
                      store:"off", mob:"coop", tadavo:"coop", other:"other"};
 const placeGroup = k => PLACE_GROUP[k] || "other";
@@ -1276,7 +1333,8 @@ function openEdit(e, isNew){
         <option value="a">${escapeHTML(nameOf("a"))}</option>
         <option value="b">${escapeHTML(nameOf("b"))}</option></select></div>
       <div class="f"><label>Where</label><select class="eKind"></select></div>
-      <div class="f" style="flex:1;min-width:200px"><label>What it's called</label>
+      <div class="f eStationWrap"><label>Station</label><select class="eStation"></select></div>
+      <div class="f eTitleWrap" style="flex:1;min-width:200px"><label>What it's called</label>
         <input class="eTitle" placeholder="e.g. front desk"></div>
     </div>
     <div class="row" style="margin-bottom:14px">
@@ -1300,6 +1358,13 @@ function openEdit(e, isNew){
   q("eWho").value = e.person;
   fillPlaces(q("eKind"), e.person);
   q("eKind").value = e.kind;
+  fillStations(q("eStation"), e.station || "");
+  const syncEditStation = () => {
+    const on = hasStations(q("eKind").value);
+    wrap.querySelector(".eStationWrap").style.display = on ? "" : "none";
+    wrap.querySelector(".eTitleWrap").style.display   = on ? "none" : "";
+  };
+  q("eKind").addEventListener("change", syncEditStation); syncEditStation();
   q("eTitle").value = e.title;
   q("eDay").value = e.day;
   q("eStart").value = toHHMM(e.start);
@@ -1333,9 +1398,12 @@ function openEdit(e, isNew){
     const s = toMin(q("eStart").value), en = toMin(q("eEnd").value);
     if(!(en > s)) return alert("The end time has to be after the start time.");
     const place = q("eKind").value;
+    const station = hasStations(place) ? q("eStation").value : "";
+    if(hasStations(place) && !station) return alert("Pick which station it is.");
     e.person = q("eWho").value;
     e.kind   = place;
-    e.title  = q("eTitle").value.trim() || placeName(place);
+    if(station){ e.station = station; e.title = station; }
+    else { delete e.station; e.title = q("eTitle").value.trim() || placeName(place); }
     e.day    = +q("eDay").value;
     e.start  = s; e.end = en;
     e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
@@ -1529,7 +1597,7 @@ function renderGrid(){
       n.appendChild(el("i","grip top"));
       n.appendChild(el("i","grip bot"));
       n.dataset.id = e.id;
-      n.title = `${nameOf(e.person)} · ${placeName(e.kind)} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
+      n.title = `${nameOf(e.person)} · ${placeName(e.kind)}${e.station ? " · " + stationLabel(e.station) : ""} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
                 (e.week === null ? (e.from ? "\nRepeats every week from " + weekDates(e.from)
                                             : "\nRepeats every week")
                                  : "\nJust this week") + "\nClick to edit";
@@ -1688,6 +1756,8 @@ function renderAll(){
   ["#fPerson","#pWhoA"].forEach(()=>{});
   $("#fPerson").options[0].text = nameOf("a"); $("#fPerson").options[1].text = nameOf("b");
   fillPlaces($("#fKind"), $("#fPerson").value);
+  fillStations($("#fStation"), $("#fStation").value);
+  syncAddStation();
   fillPlaces($("#feedKind"), $("#feedWho").value);
   $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
   $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
@@ -1979,10 +2049,22 @@ $("#addBtn").onclick = () => {
   if(e <= s) return alert("The end time has to be after the start time.");
   const wk = $("#fRepeat").value === "every" ? null : VIEW;
   const place = $("#fKind").value;
-  days.forEach(d => addEvent($("#fPerson").value, d, s, e, $("#fTitle").value.trim() || placeName(place), place, wk));
+  const station = hasStations(place) ? $("#fStation").value : "";
+  if(hasStations(place) && !station) return alert("Pick which station it is.");
+  const label = station || $("#fTitle").value.trim() || placeName(place);
+  days.forEach(d => {
+    addEvent($("#fPerson").value, d, s, e, label, place, wk);
+    if(station) S.events[S.events.length-1].station = station;
+  });
   $("#fTitle").value = ""; renderAll(); syncSoon();
 };
-$("#fPerson").onchange = () => fillPlaces($("#fKind"), $("#fPerson").value);
+function syncAddStation(){
+  const on = hasStations($("#fKind").value);
+  $("#fStationWrap").style.display = on ? "" : "none";
+  $("#fTitleWrap").style.display   = on ? "none" : "";
+}
+$("#fKind").addEventListener("change", syncAddStation);
+$("#fPerson").onchange = () => { fillPlaces($("#fKind"), $("#fPerson").value); syncAddStation(); };
 $("#impBtn").onclick = () => stageLines($("#impText").value.split("\n"), "import");
 $("#impDemo").onclick = () => { $("#impText").value =
 `MWF 9:15-10:20  CS 3500
