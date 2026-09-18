@@ -618,7 +618,6 @@ const RSO_STATIONS = [
   ["Husky Card Services","SS"],
   ["Oakland Dispatch","SS"],
   ["Proctor Shadow","SS"],
-  ["RSO","SS"],
 ];
 const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
 const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
@@ -1418,7 +1417,9 @@ function openEdit(e, isNew){
     if(!(en > s)) return alert("The end time has to be after the start time.");
     const place = q("eKind").value;
     const station = hasStations(place) ? q("eStation").value : "";
-    if(hasStations(place) && !station) return alert("Pick which station it is.");
+    const hadStation = !!e.station;
+    if(hasStations(place) && !station && (isNew || hadStation))
+      return alert("Pick which station it is.");
     e.person = q("eWho").value;
     e.kind   = place;
     if(station){ e.station = station; e.title = station; }
