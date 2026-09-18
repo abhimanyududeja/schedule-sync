@@ -1675,6 +1675,7 @@ function renderFree(){
    stretch, so the break comes off once, not once per post. */
 const BREAK_AFTER = 8 * 60;      // a run this long or longer carries a break
 const BREAK_MINS  = 30;
+const BREAK_KINDS = new Set(["rso"]);   // only RSO works this way; other jobs pay the full stretch
 
 /* Contiguous blocks for the same person at the same workplace on the same day. */
 function workRuns(person, iso){
@@ -1703,6 +1704,7 @@ function hoursFor(person, iso){
     by[k].shifts++;
   });
   workRuns(person, iso).forEach(r => {
+    if(!BREAK_KINDS.has(r.kind)) return;
     if(r.end - r.start < BREAK_AFTER) return;
     const k = r.kind;
     if(!by[k]) return;
