@@ -1670,13 +1670,44 @@ function renderFree(){
   });
 }
 /* Hours worked this week, split by person and by place. */
+/* A long unbroken stretch has an unpaid 30 minute break in it, so an 8 hour
+   shift is 7.5 paid hours. Back-to-back posts (A then B, C1 then C2) are one
+   stretch, so the break comes off once, not once per post. */
+const BREAK_AFTER = 8 * 60;      // a run this long or longer carries a break
+const BREAK_MINS  = 30;
+
+/* Contiguous blocks for the same person at the same workplace on the same day. */
+function workRuns(person, iso){
+  const runs = [];
+  const byDayKind = {};
+  weekEvents(iso).filter(e => e.person === person).forEach(e => {
+    const k = `${e.day}|${e.kind || "other"}`;
+    (byDayKind[k] ||= []).push(e);
+  });
+  Object.values(byDayKind).forEach(list => {
+    list.sort((a,b) => a.start - b.start);
+    let cur = null;
+    list.forEach(e => {
+      if(cur && e.start <= cur.end){ cur.end = Math.max(cur.end, e.end); cur.parts.push(e); }
+      else { cur = {start:e.start, end:e.end, kind:e.kind || "other", parts:[e]}; runs.push(cur); }
+    });
+  });
+  return runs;
+}
 function hoursFor(person, iso){
   const by = {};
   weekEvents(iso).filter(e => e.person === person).forEach(e => {
     const k = e.kind || "other";
-    if(!by[k]) by[k] = {mins:0, shifts:0};
+    if(!by[k]) by[k] = {mins:0, shifts:0, breaks:0};
     by[k].mins += Math.max(0, e.end - e.start);
     by[k].shifts++;
+  });
+  workRuns(person, iso).forEach(r => {
+    if(r.end - r.start < BREAK_AFTER) return;
+    const k = r.kind;
+    if(!by[k]) return;
+    by[k].mins = Math.max(0, by[k].mins - BREAK_MINS);
+    by[k].breaks++;
   });
   return by;
 }
@@ -1714,7 +1745,8 @@ function renderHours(){
       (rows.length ? rows.map(([k,v]) => `
         <div class="hrow">
           <div class="lbl"><b>${escapeHTML(placeName(k))}</b>
-            <span>${dur(v.mins)} · ${v.shifts} shift${v.shifts===1?"":"s"}</span></div>
+            <span>${dur(v.mins)} · ${v.shifts} shift${v.shifts===1?"":"s"}${
+              v.breaks ? ` · less ${v.breaks===1 ? "a 30m break" : v.breaks+" breaks"}` : ""}</span></div>
           <div class="hbar"><i style="width:${peak ? Math.max(3, v.mins/peak*100) : 0}%;background:${placeColor(k)}"></i></div>
         </div>`).join("")
        : `<div class="none">No shifts this week.</div>`);
