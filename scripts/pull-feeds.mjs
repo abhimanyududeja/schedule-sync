@@ -184,7 +184,15 @@ for (const feed of JSON.parse(FEEDS)) {
     continue;
   }
 
-  for (const e of data.events.filter(e => e.src === feedId)) {
+  /* Only reconcile the span actually examined. A shift that has aged out of the
+     window is history, not a cancellation, and deleting it would wipe the hours
+     record week by week. */
+  const inWindow = e => {
+    if (!e.week) return true;
+    const at = Date.parse(e.week + "T12:00:00Z");
+    return at >= loMs && at <= hiMs;
+  };
+  for (const e of data.events.filter(e => e.src === feedId && inWindow(e))) {
     const w = want.get(e.id);
     if (!w) { data.tomb.push({ k: e.id, t: now }); removed++; continue; }
     if (w.title !== e.title || w.start !== e.start || w.end !== e.end ||
