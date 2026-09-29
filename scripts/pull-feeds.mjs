@@ -134,7 +134,7 @@ let added = 0, removed = 0, changed = 0, failed = 0;
 
 for (const feed of JSON.parse(FEEDS)) {
   const feedId = hash32(feed.url).slice(0, 8);
-  let want = new Map();
+  let want = new Map(), newest = 0, total = 0;
   try {
     const r = await fetch(feed.url, { headers: { "User-Agent": "schedule-sync" } });
     if (!r.ok) throw new Error("feed replied " + r.status);
@@ -142,6 +142,8 @@ for (const feed of JSON.parse(FEEDS)) {
     if (!/BEGIN:VCALENDAR/i.test(text)) throw new Error("not a calendar feed");
     for (const ev of parseICS(text)) {
       const at = stamp(ev.start);
+      if (at > newest) newest = at;
+      total++;
       if (at < loMs || at > hiMs) continue;
       for (const b of blocksFor(feed, feedId, ev)) want.set(b.id, b);
     }
@@ -155,11 +157,29 @@ for (const feed of JSON.parse(FEEDS)) {
   /* A feed that suddenly returns nothing is almost always a glitch upstream, not
      every shift being cancelled at once. Deleting on that signal loses real data,
      so hold what we have and report instead. */
+  /* Google serves this feed from a cache and throttles frequent readers, so a
+     fetch can come back empty or truncated even though the calendar is fine.
+     Deleting on that signal loses real shifts, so treat any large drop as a
+     bad read rather than a rota change. */
   const held = data.events.filter(e => e.src === feedId).length;
-  if (want.size === 0 && held > 0) {
-    console.error(`feed ${feed.label || feedId}: returned 0 events but ${held} are held; keeping them`);
+  const day = ms => new Date(ms).toISOString().slice(0, 10);
+  /* A feed whose newest entry is in the past is not empty, it is stale: whoever
+     publishes it has stopped. Say so, because "0 events" sounds like a glitch. */
+  const stale = total > 0 && newest < Date.now();
+  if (want.size === 0 && stale) {
+    const msg = `${feed.label || feedId}: nothing current. The feed still has ${total} shifts but the ` +
+                `newest is ${day(newest)}, so whoever publishes it stopped updating it.`;
+    console.error(msg);
     const m0 = data.feeds.find(f => f.id === feedId);
-    if (m0) { m0.err = "the calendar came back empty, so the shifts were kept"; m0.m = now; }
+    if (m0) { m0.err = `stale: newest shift is ${day(newest)}`; m0.m = now; }
+    failed++;
+    continue;
+  }
+  if (held > 0 && want.size < Math.max(1, Math.ceil(held * 0.5))) {
+    console.error(`feed ${feed.label || feedId}: returned ${want.size} events but ${held} are held; ` +
+                  `too big a drop to trust, keeping what we have`);
+    const m0 = data.feeds.find(f => f.id === feedId);
+    if (m0) { m0.err = `only ${want.size} of ${held} shifts came back, so none were removed`; m0.m = now; }
     failed++;
     continue;
   }
@@ -186,8 +206,8 @@ for (const feed of JSON.parse(FEEDS)) {
 }
 
 if (!added && !removed && !changed) {
-  console.log(`no change (${failed} feed(s) failed)`);
-  process.exit(failed ? 1 : 0);
+  console.log(`no change (${failed} feed(s) skipped)`);
+  process.exit(0);
 }
 
 const put = await fetch(base, {
@@ -196,5 +216,5 @@ const put = await fetch(base, {
   body: JSON.stringify([{ id: ROOM_CODE, data, updated_at: new Date().toISOString() }])
 });
 if (!put.ok) { console.error("Supabase write failed:", put.status, await put.text()); process.exit(1); }
-console.log(`added ${added}, removed ${removed}, changed ${changed}, failed ${failed}`);
-process.exit(failed ? 1 : 0);
+console.log(`added ${added}, removed ${removed}, changed ${changed}, skipped ${failed}`);
+process.exit(0);

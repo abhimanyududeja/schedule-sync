@@ -2,7 +2,7 @@ name: Pull job calendars
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 minutes
+    - cron: "17 */6 * * *"   # four times a day; Google throttles frequent readers
   workflow_dispatch:          # and on demand from the Actions tab
 
 concurrency:
