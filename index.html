@@ -153,6 +153,11 @@
   .hcard h3{margin:0 0 4px;font-size:14px;display:flex;align-items:center;gap:8px;font-weight:600}
   .hcard .tot{font-size:27px;font-weight:650;letter-spacing:-.6px;margin-bottom:16px;line-height:1.1}
   .hcard .tot small{display:block;font-size:11.5px;font-weight:400;color:var(--faint);letter-spacing:0;margin-top:3px}
+  .hcard .tot .totlbl{display:block;font-size:10px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:1px}
+  .hcard .tot.over{color:var(--warn)}
+  .hcard .tot.over .totlbl,.hcard .tot.over small{color:var(--warn)}
+  .split div.tot-cell em{display:block;font-style:normal;font-size:10px;color:var(--faint);margin-top:2px}
   .split{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}
   .split div{flex:1;min-width:74px;background:var(--panel2);border:1px solid var(--line);
     border-radius:8px;padding:7px 9px;line-height:1.3}
@@ -337,6 +342,7 @@
       <div class="f"><label>Whose</label>
         <select id="fPerson"><option value="a">You</option><option value="b">Her</option></select></div>
       <div class="f"><label>Where</label><select id="fKind"></select></div>
+      <div class="f" id="fShiftWrap"><label>Shift</label><select id="fShift"></select></div>
       <div class="f" id="fStationWrap"><label>Station</label><select id="fStation"></select></div>
       <div class="f" id="fTitleWrap"><label>What <span style="text-transform:none">(optional)</span></label>
         <input id="fTitle" placeholder="e.g. front desk" style="width:170px"></div>
@@ -611,6 +617,16 @@ const RSO_STATIONS = [
   ["Proctor Shadow","SS"],
 ];
 const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
+/* RSO runs fixed blocks, so picking the shift fills the times. */
+const RSO_SHIFTS = [["A",480,720], ["B",720,960], ["C1",960,1200], ["C2",1200,1440], ["M",0,480]];
+const shiftLabel = ([n,a,b]) => `${n} · ${fmt(a)}–${fmt(b)}`;
+const shiftFor = (start,end) => (RSO_SHIFTS.find(([,a,b]) => a === start && b === end) || [""])[0];
+function fillShifts(sel, start, end){
+  sel.innerHTML = "";
+  const custom = el("option"); custom.value = ""; custom.textContent = "Custom times"; sel.appendChild(custom);
+  RSO_SHIFTS.forEach(sh => { const o = el("option"); o.value = sh[0]; o.textContent = shiftLabel(sh);
+    if(sh[0] === shiftFor(start,end)) o.selected = true; sel.appendChild(o); });
+}
 const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
 /* Only RSO posts have stations; every other workplace uses the free-text name. */
 const hasStations = kind => kind === "rso";
@@ -1342,6 +1358,7 @@ function openEdit(e, isNew){
         <option value="a">${escapeHTML(nameOf("a"))}</option>
         <option value="b">${escapeHTML(nameOf("b"))}</option></select></div>
       <div class="f"><label>Where</label><select class="eKind"></select></div>
+      <div class="f eShiftWrap"><label>Shift</label><select class="eShift"></select></div>
       <div class="f eStationWrap"><label>Station</label><select class="eStation"></select></div>
       <div class="f eTitleWrap" style="flex:1;min-width:200px"><label>What it's called</label>
         <input class="eTitle" placeholder="e.g. front desk"></div>
@@ -1368,9 +1385,22 @@ function openEdit(e, isNew){
   fillPlaces(q("eKind"), e.person);
   q("eKind").value = e.kind;
   fillStations(q("eStation"), e.station || "");
+  fillShifts(q("eShift"), e.start, e.end);
+  q("eShift").onchange = () => {
+    const sh = RSO_SHIFTS.find(x => x[0] === q("eShift").value);
+    if(!sh) return;
+    q("eStart").value = toHHMM(sh[1]);
+    q("eEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
+    q("eEnd").dataset.exact = sh[2];
+  };
+  ["eStart","eEnd"].forEach(k => q(k).addEventListener("change", () => {
+    delete q("eEnd").dataset.exact;
+    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value));
+  }));
   const syncEditStation = () => {
     const on = hasStations(q("eKind").value);
     wrap.querySelector(".eStationWrap").style.display = on ? "" : "none";
+    wrap.querySelector(".eShiftWrap").style.display   = on ? "" : "none";
     wrap.querySelector(".eTitleWrap").style.display   = on ? "none" : "";
   };
   q("eKind").addEventListener("change", syncEditStation); syncEditStation();
@@ -1404,7 +1434,8 @@ function openEdit(e, isNew){
     close(); del(e.id);
   };
   q("eSave").onclick = () => {
-    const s = toMin(q("eStart").value), en = toMin(q("eEnd").value);
+    const s = toMin(q("eStart").value);
+    const en = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
     if(!(en > s)) return alert("The end time has to be after the start time.");
     const place = q("eKind").value;
     const station = hasStations(place) ? q("eStation").value : "";
@@ -1732,17 +1763,17 @@ function renderHours(){
     const card = el("div","hcard");
     card.innerHTML =
       `<h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}</h3>
-       <div class="tot">${total ? dur(total) : "0h"}<small>${
-         last ? (diff === 0 ? " same as last week"
-              : ` ${diff > 0 ? "+" : "−"}${dur(Math.abs(diff))} vs last week`) : ""}</small></div>
+       <div class="tot${split.campus > CAMPUS_CAP ? " over" : ""}">
+         <span class="totlbl">On campus</span>
+         ${dur(split.campus)}<small>of the 20h limit${
+           split.campus > CAMPUS_CAP ? ` · ${dur(split.campus - CAMPUS_CAP)} over` : ""}</small></div>
        <div class="split">
-         <div class="${split.campus > CAMPUS_CAP ? "over" : ""}"><span>On campus</span>
-           <b>${dur(split.campus)}</b>${split.campus > CAMPUS_CAP
-             ? `<em>${dur(split.campus - CAMPUS_CAP)} over the 20h limit</em>` : ""}</div>
          ${split.off ? `<div><span>Off campus</span><b>${dur(split.off)}</b></div>` : ""}
          <div><span>Co-op</span><b>${dur(split.coop)}</b></div>
          ${split.other ? `<div><span>Other</span><b>${dur(split.other)}</b></div>` : ""}
-         <div class="tot-cell"><span>Total</span><b>${dur(total)}</b></div>
+         <div class="tot-cell"><span>Everything</span><b>${dur(total)}</b>${
+           last ? `<em>${diff === 0 ? "same as last week"
+                 : `${diff > 0 ? "+" : "−"}${dur(Math.abs(diff))} vs last week`}</em>` : ""}</div>
        </div>` +
       (rows.length ? rows.map(([k,v]) => `
         <div class="hrow">
@@ -2116,7 +2147,8 @@ $("#ocrParse").onclick = () => stageLines($("#ocrText").value.split("\n"), "phot
 /* ================= actions ================= */
 $("#addBtn").onclick = () => {
   const days = $$("#fDays button.on").map(b => +b.dataset.d);
-  const s = toMin($("#fStart").value), e = toMin($("#fEnd").value);
+  const s = toMin($("#fStart").value);
+  const e = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
   if(!days.length) return alert("Pick at least one day.");
   if(e <= s) return alert("The end time has to be after the start time.");
   const wk = $("#fRepeat").value === "every" ? null : VIEW;
@@ -2133,8 +2165,21 @@ $("#addBtn").onclick = () => {
 function syncAddStation(){
   const on = hasStations($("#fKind").value);
   $("#fStationWrap").style.display = on ? "" : "none";
+  $("#fShiftWrap").style.display   = on ? "" : "none";
   $("#fTitleWrap").style.display   = on ? "none" : "";
+  if(on) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
 }
+$("#fShift").onchange = () => {
+  const sh = RSO_SHIFTS.find(x => x[0] === $("#fShift").value);
+  if(!sh) return;
+  $("#fStart").value = toHHMM(sh[1]);
+  $("#fEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
+  $("#fEnd").dataset.exact = sh[2];          // keep midnight as 24:00, not 23:59
+};
+["#fStart","#fEnd"].forEach(k => $(k).addEventListener("change", () => {
+  delete $("#fEnd").dataset.exact;
+  if(hasStations($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
+}));
 $("#fKind").addEventListener("change", syncAddStation);
 $("#fPerson").onchange = () => { fillPlaces($("#fKind"), $("#fPerson").value); syncAddStation(); };
 $("#impBtn").onclick = () => stageLines($("#impText").value.split("\n"), "import");
