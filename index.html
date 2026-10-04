@@ -356,7 +356,8 @@
         <select id="fRepeat">
           <option value="once">Just this week</option>
           <option value="every">Every week</option></select></div>
-      <div class="f"><label>Days</label><div class="days" id="fDays"></div></div>
+      <div class="f fdays"><label>Days</label><div class="days" id="fDays"></div>
+        <small class="dayhint" id="fDayHint"></small></div>
       <div class="f"><label>Start</label><input id="fStart" type="time" value="09:00"></div>
       <div class="f"><label>End</label><input id="fEnd" type="time" value="10:30"></div>
       <button class="btn" id="addBtn">Add</button>
@@ -2331,12 +2332,19 @@ $$("nav.tabs button").forEach(b => b.onclick = () => {
   $$(".view").forEach(v => v.classList.remove("on")); $("#v-" + b.dataset.v).classList.add("on");
   if(b.dataset.v === "settings") fillSyncFields();
 });
+const fDayHint = () => {
+  const n = $$("#fDays button.on").length;
+  $("#fDayHint").textContent = n > 1
+    ? `Adds the same block on all ${n} days.`
+    : "Tap more days to add the same block on each of them.";
+};
 DAYS.forEach((d,i) => {
   const b = el("button","",DAYBTN[i]);
-  b.dataset.d = i; if(WEEKDAYS.includes(i)) b.classList.add("on");
-  b.onclick = () => b.classList.toggle("on");
+  b.type = "button"; b.dataset.d = i; if(WEEKDAYS.includes(i)) b.classList.add("on");
+  b.onclick = () => { b.classList.toggle("on"); fDayHint(); };
   $("#fDays").appendChild(b);
 });
+fDayHint();
 /* A stray paste into the name box used to blow out every dropdown, so cap it. */
 const NAME_MAX = 24;
 function setName(which, raw, input){
