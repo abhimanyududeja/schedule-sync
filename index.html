@@ -94,6 +94,7 @@
   .days button{background:var(--panel2);border:1px solid var(--line);border-radius:7px;width:38px;
     padding:7px 0;color:var(--dim);font-size:12px;font-weight:600}
   .days button.on{background:var(--a);border-color:var(--a);color:#0b0e16}
+  .dayhint{display:block;font-size:11px;color:var(--faint);margin-top:5px}
 
   .gridwrap{overflow-x:auto;padding-bottom:6px}
   .grid{display:grid;grid-template-columns:56px repeat(7,minmax(120px,1fr));gap:6px;min-width:940px}
@@ -206,6 +207,7 @@
     .f{flex:1;min-width:calc(50% - 5px)}
     .f input,.f select{width:100%;font-size:16px;padding:10px}   /* 16px stops iOS zooming on focus */
     .days{width:100%} .days button{width:auto;flex:1;padding:11px 0}
+    .f.fdays{min-width:100%}          /* seven day chips need the whole row to stay tappable */
     .btn{padding:12px 14px}
     .legend{font-size:11.5px;gap:8px 12px}
     .legend .dragtip{display:none}          /* no dragging on a touch screen */
@@ -1368,8 +1370,8 @@ function openEdit(e, isNew){
         <input class="eTitle" placeholder="e.g. front desk"></div>
     </div>
     <div class="row" style="margin-bottom:14px">
-      <div class="f"><label>Day</label><select class="eDay">
-        ${DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join("")}</select></div>
+      <div class="f fdays"><label>Days</label><div class="days eDays"></div>
+        <small class="dayhint"></small></div>
       <div class="f"><label>Start</label><input class="eStart" type="time"></div>
       <div class="f"><label>End</label><input class="eEnd" type="time"></div>
       <div class="f"><label>Repeats</label><select class="eRep">
@@ -1409,7 +1411,31 @@ function openEdit(e, isNew){
   };
   q("eKind").addEventListener("change", syncEditStation); syncEditStation();
   q("eTitle").value = e.title;
-  q("eDay").value = e.day;
+
+  /* The same block usually runs on more than one day: the daily scrum is Monday
+     to Friday, kept as five blocks. Light up every day this one already covers so
+     an edit can add or drop days here instead of opening all five. */
+  const twins = isNew ? [] : S.events.filter(o =>
+    o.id !== e.id && !o.src && o.person === e.person && o.kind === e.kind &&
+    o.title === e.title && o.start === e.start && o.end === e.end &&
+    (o.week ?? null) === (e.week ?? null) && (o.from || "") === (e.from || "") &&
+    (o.station || "") === (e.station || ""));
+  const twinByDay = new Map(twins.map(o => [o.day, o]));
+  const litDays = () => [...wrap.querySelectorAll(".eDays button.on")].map(b => +b.dataset.d);
+  const hint = () => {
+    const n = litDays().length;
+    q("dayhint").textContent = n > 1
+      ? `Saves on all ${n} days. Tap a day off to drop it.`
+      : "Tap more days to put the same block on each of them.";
+  };
+  DAYS.forEach((d,i) => {
+    const b = el("button","",DAYBTN[i]);
+    b.type = "button"; b.dataset.d = i;
+    if(i === e.day || twinByDay.has(i)) b.classList.add("on");
+    b.onclick = () => { b.classList.toggle("on"); hint(); };
+    q("eDays").appendChild(b);
+  });
+  hint();
   q("eStart").value = toHHMM(e.start);
   q("eEnd").value = toHHMM(e.end);
   q("eRep").value = e.week === null ? "every" : "once";
@@ -1450,13 +1476,35 @@ function openEdit(e, isNew){
     e.kind   = place;
     if(station){ e.station = station; e.title = station; }
     else { delete e.station; e.title = q("eTitle").value.trim() || placeName(place); }
-    e.day    = +q("eDay").value;
+    const days = litDays();
+    if(!days.length) return alert("Pick at least one day.");
+    // this block stays where it is if that day is still lit, and otherwise moves
+    // to the first lit day that no sibling of its own is already sitting on
+    e.day    = days.includes(e.day) ? e.day : (days.find(d => !twinByDay.has(d)) ?? days[0]);
     e.start  = s; e.end = en;
     e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
     if(e.week === null){ const f = q("eFrom").value; if(f) e.from = f; else delete e.from; }
     else delete e.from;
     touch(e);
     if(isNew) S.events.push(e);
+
+    // every other lit day reuses the sibling already there, or gets a fresh copy
+    days.filter(d => d !== e.day).forEach(d => {
+      const twin = twinByDay.get(d), copy = twin || { id: newId() };
+      Object.assign(copy, { person: e.person, kind: e.kind, title: e.title,
+                            day: d, start: e.start, end: e.end, week: e.week });
+      if(e.station) copy.station = e.station; else delete copy.station;
+      if(e.from) copy.from = e.from; else delete copy.from;
+      touch(copy);
+      if(!twin) S.events.push(copy);
+    });
+    // a sibling on a day you turned off goes, as does one on the day this block took
+    const gone = twins.filter(o => !days.includes(o.day) || o.day === e.day);
+    if(gone.length){
+      const t = Date.now(), ids = new Set(gone.map(o => o.id));
+      gone.forEach(o => S.tomb.push({ k: o.id, t }));
+      S.events = S.events.filter(x => !ids.has(x.id));
+    }
     close(); renderAll(); syncSoon();
   };
 }
