@@ -11,8 +11,9 @@ It runs in the browser as a single HTML file, with no build step and no account.
   Tap a name to show or hide that person. Drag to move or resize; tap empty space to add a block.
 - **Free Together**: every window when everyone shown is awake and free, for a house meeting,
   cleaning day or groceries run, exportable to your calendar.
-- **Hours**: hours per job each week, a 20h on-campus meter for student visas, a weekly
-  minimum for a job if it asks for one, and warnings when a new shift would go over 20h
+- **Hours**: hours per job each week against each person's own weekly cap (20h on campus
+  for a student visa, 40h for an internship or full-time job, or anything else), a weekly
+  minimum for a job if it asks for one, and warnings when a new shift would go over the cap
   or an overnight runs into a morning class.
 - **Pay**: each paycheck on its real payday, before and after tax, which job it's from,
   payslip amounts you type in, a month-by-month table, tax held back for the year, and a CSV export.

@@ -243,6 +243,8 @@
   details.adv{margin-top:12px}
   details.adv summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--dim)}
   .prow2{align-items:flex-end;margin-bottom:8px}
+  .capset{display:flex;gap:6px}
+  .capset input{width:70px}
   .prow2 .x{margin-bottom:8px}
   .brow{display:flex;align-items:center;gap:10px;justify-content:space-between;max-width:360px;padding:7px 10px;
     margin-bottom:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;font-size:13px}
@@ -728,10 +730,10 @@
     <button class="btn ghost" id="addPerson">+ Add a person</button>
   </div>
   <div class="card">
-    <h2>Break weeks: no 20h on-campus limit</h2>
+    <h2>Break weeks: no on-campus cap</h2>
     <p class="hint" style="margin:-4px 0 12px">
       Student visas usually allow full-time work during official university breaks. Add those dates and
-      any week whose weekdays all fall inside one shows no 20h limit. Check your school's calendar first.
+      any week whose weekdays all fall inside one has no on-campus cap. Check your school's calendar first.
     </p>
     <div id="breakList"></div>
     <div class="row">
@@ -870,7 +872,18 @@ function fillStations(sel, current){
     if(n === current) o.selected = true; sel.appendChild(o); });
 }
 const placeGroup = k => (jobOf(k) || {}).group || "other";
-const CAMPUS_CAP = 20 * 60;        // minutes of on-campus work allowed in a week
+/* Each person's weekly hour cap: 20h of on-campus work by default (the student
+   visa rule), or any number against all work, say 40h for an internship or a
+   full-time job. 0 means no cap. Set per person under Settings -> People. */
+const capOf = w => (S.pay && S.pay.cap[w]) || {h:20, scope:"campus"};
+const capWhere = c => c.scope === "all" ? "of work" : "on campus";
+function cappedOf(w, iso){
+  const c = capOf(w);
+  return Object.entries(hoursFor(w, iso)).filter(([k]) => c.scope === "all" ? placeGroup(k) !== "other" : placeGroup(k) === "campus")
+    .reduce((t, [, v]) => t + v.mins, 0);
+}
+// a university break lifts an on-campus cap, never an all-work one
+const capOff = (w, iso) => !capOf(w).h || (capOf(w).scope === "campus" && breakWeek(iso));
 /* Weeks with no 20h limit (F-1 students may work full time over official
    breaks), kept as [first day, last day] pairs under Settings. A week whose
    weekdays all fall inside one is unlimited. */
@@ -933,7 +946,7 @@ const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"", crew:{},
 function normPay(p){
   const n = v => { const x = +v; return x > 0 && x < 1000 ? Math.round(x * 100) / 100 : 0; };
   const out = {rate:perP(() => ({})), night:perP(() => ({})), tip:perP(() => ({})), unpaid:perP(() => ({})), tax:perP(() => 0),
-               actual:perP(() => ({})), jobs:perP(() => []), payrolls:perP(() => []), min:perP(() => null), breaks:[]};
+               actual:perP(() => ({})), jobs:perP(() => []), payrolls:perP(() => []), min:perP(() => null), cap:perP(() => null), breaks:[]};
   const iso = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
   const str = (v, n = 40) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
   const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
@@ -971,6 +984,9 @@ function normPay(p){
         fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
         ...(r.cash === true ? {cash: true} : {})});
     });
+    const cp = p && p.cap && p.cap[w];
+    if(cp && Number.isFinite(+cp.h) && +cp.h >= 0 && +cp.h <= 100)
+      out.cap[w] = {h: Math.round(+cp.h * 2) / 2, scope: cp.scope === "all" ? "all" : "campus"};
     const m = p && p.min && p.min[w];
     if(m && key(m.k) && +m.h > 0) out.min[w] = {k: key(m.k), h: Math.min(40, Math.round(+m.h * 4) / 4), from: iso(m.from), to: iso(m.to)};
   });
@@ -1148,6 +1164,7 @@ function mergeStates(local, remote){
     PIDS.forEach(w => {
       ["jobs","payrolls"].forEach(f => { if(!pay[f][w].length && other[f][w].length) pay[f][w] = other[f][w]; });
       if(!pay.min[w] && other.min[w]) pay.min[w] = other.min[w];
+      if(!pay.cap[w] && other.cap[w]) pay.cap[w] = other.cap[w];
       if(!Object.keys(pay.actual[w]).length && Object.keys(other.actual[w]).length) pay.actual[w] = other.actual[w];
     });
     if(!pay.breaks.length && other.breaks.length) pay.breaks = other.breaks;
@@ -1845,26 +1862,25 @@ function openEdit(e, isNew){
 }
 
 /* What a shift you're about to save does to that week: on-campus hours against
-   the 20h limit, roughly what it adds to pay, and any overnight-before-class
+   that person's hour cap, roughly what it adds to pay, and any overnight-before-class
    clash. Works by trying the change on a copy of the week. */
-function campusOf(w, iso){
-  return Object.entries(hoursFor(w, iso)).filter(([k]) => placeGroup(k) === "campus").reduce((t, [, v]) => t + v.mins, 0);
-}
 function shiftImpact(cands, drop = new Set()){
   if(!cands.length || !(cands[0].end > cands[0].start)) return "";
   const w = cands[0].person, iso = cands[0].week || VIEW, real = S.events;
-  const b = {campus: campusOf(w, iso), gross: payFor(w, iso).gross};
+  const b = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross};
   let a, tired;
   S.events = real.filter(x => !drop.has(x.id)).concat(cands.map((c, i) => ({...c, id: "~" + i, week: c.week === null ? null : iso})));
-  try { a = {campus: campusOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); }
+  try { a = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); }
   finally { S.events = real; }
   const dc = a.campus - b.campus, dg = a.gross - b.gross, bits = [];
   let cls = "impact";
   if(dc){
     const sign = dc > 0 ? "+" : "−";
-    if(breakWeek(iso)) bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus · break week, no 20h limit`);
-    else if(a.campus > CAMPUS_CAP){ cls += " bad"; bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus, ${dur(a.campus - CAMPUS_CAP)} over the 20h limit`); }
-    else bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus, ${a.campus === CAMPUS_CAP ? "right at the limit" : dur(CAMPUS_CAP - a.campus) + " left"}`);
+    const c = capOf(w), cap = c.h * 60, where = capWhere(c), head = `${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} ${where}`;
+    if(!c.h) bits.push(head);
+    else if(capOff(w, iso)) bits.push(`${head} · break week, no cap`);
+    else if(a.campus > cap){ cls += " bad"; bits.push(`${head}, ${dur(a.campus - cap)} over the ${dur(cap)} cap`); }
+    else bits.push(`${head}, ${a.campus === cap ? "right at the cap" : dur(cap - a.campus) + " left"}`);
   }
   if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
   if(tired.length){ cls += " bad"; bits.push(...tired.map(tiredText)); }
@@ -2234,10 +2250,11 @@ function renderHours(){
   const shown = [["off","Off campus"], ["coop","Co-op"], ["other","Other"]]
     .filter(([g]) => cards.some(p => p.split[g]));
 
-  const brk = breakWeek(VIEW);
   cards.forEach(({ w, rows, total, last, split }) => {
     const diff = total - last;
-    const over = !brk && split.campus > CAMPUS_CAP;
+    const c = capOf(w), cap = c.h * 60, free = capOff(w, VIEW);
+    const counted = c.scope === "all" ? split.campus + split.off + split.coop : split.campus;
+    const over = !free && counted > cap;
     const mn = minOf(w), need = mn ? mn.h * 60 : 0, inMin = minWeek(w, VIEW);
     const got = mn ? (rows.find(([k]) => k === mn.k) || [0, {mins:0}])[1].mins : 0;
     const alerts = [
@@ -2250,12 +2267,12 @@ function renderHours(){
     card.innerHTML =
       `<h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}<span class="hsub">${weekDates(VIEW)}</span></h3>
        <div class="tot${over ? " over" : ""}">
-         <span class="totlbl">On campus</span>
-         ${dur(split.campus)}<span class="est">${brk ? "break week" : "of 20h"}</span>
-         <div class="cap${brk ? " open" : ""}"><i style="width:${brk ? 100 : Math.min(100, split.campus / CAMPUS_CAP * 100)}%"></i></div>
-         <small>${brk ? "University break: no 20h limit this week"
-           : over ? `${dur(split.campus - CAMPUS_CAP)} over the limit`
-           : split.campus === CAMPUS_CAP ? "Right at the limit" : `${dur(CAMPUS_CAP - split.campus)} left this week`}</small></div>
+         <span class="totlbl">${c.scope === "all" ? "All work" : "On campus"}</span>
+         ${dur(counted)}<span class="est">${!c.h ? "no cap set" : free ? "break week" : "of " + dur(cap)}</span>
+         ${c.h ? `<div class="cap${free ? " open" : ""}"><i style="width:${free ? 100 : Math.min(100, counted / cap * 100)}%"></i></div>` : ""}
+         <small>${!c.h ? "Set a weekly cap under Settings → People" : free ? "University break: no cap this week"
+           : over ? `${dur(counted - cap)} over the cap`
+           : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}</small></div>
        ${alerts.map(a => `<div class="alert">${escapeHTML(a)}</div>`).join("")}${
          inMin && got >= need ? `<div class="alert ok">${escapeHTML(placeName(mn.k))} ${dur(need)} minimum met this week</div>` : ""}
        <div class="split" style="--cols:${Math.max(shown.length, 1)}">
@@ -2276,16 +2293,12 @@ function renderHours(){
        : `<div class="none">No shifts this week.</div>`);
     host.appendChild(card);
   });
-  const over = people().map(w => {
-    const mins = Object.entries(hoursFor(w, VIEW))
-      .filter(([k]) => placeGroup(k) === "campus")
-      .reduce((t,[,v]) => t + v.mins, 0);
-    return {who:nameOf(w), mins};
-  }).filter(x => !brk && x.mins > CAMPUS_CAP);
+  const over = people().map(w => ({who:nameOf(w), mins:cappedOf(w, VIEW), c:capOf(w), free:capOff(w, VIEW)}))
+    .filter(x => !x.free && x.mins > x.c.h * 60);
   $("#hoursNote").className = over.length ? "note warn" : "note";
   $("#hoursNote").innerHTML =
-    (over.length ? `<b>Over the 20h on-campus limit this week:</b> ` +
-       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)}`).join(", ") + `. ` : "") +
+    (over.length ? `<b>Over their weekly cap:</b> ` +
+       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)} ${capWhere(o.c)} (cap ${dur(o.c.h * 60)})`).join(", ") + `. ` : "") +
     `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)}. ${grand ? dur(grand) : "0h"} worked between you. ` +
     `Use the ‹ › arrows at the top to check another week.`;
 }
@@ -3202,6 +3215,10 @@ function renderPeople(){
         <input data-pw="${w}" data-pf="name" maxlength="24" placeholder="${w === "a" ? "Your name" : "Their name"}" value="${escapeHTML(pGet(w, "name") || "")}"></div>
       <div class="f"><label>up at</label><input data-pw="${w}" data-pf="wake" type="time" value="${pGet(w, "wake") || "08:00"}"></div>
       <div class="f"><label>in bed by</label><input data-pw="${w}" data-pf="sleep" type="time" value="${pGet(w, "sleep") || "23:00"}"></div>
+      <div class="f"><label>weekly cap</label><span class="capset">
+        <input data-cw="${w}" data-cf="h" type="number" inputmode="decimal" min="0" max="100" step="0.5" value="${capOf(w).h || ""}" placeholder="none">
+        <select data-cw="${w}" data-cf="scope"><option value="campus"${capOf(w).scope === "campus" ? " selected" : ""}>h on campus</option>
+          <option value="all"${capOf(w).scope === "all" ? " selected" : ""}>h of all work</option></select></span></div>
       ${w === "a" || w === "b" ? "" : `<button type="button" class="x" data-prm="${w}" title="Remove ${escapeHTML(nameOf(w))}">✕</button>`}
     </div>`).join("");
   if(typing && host.dataset.ids !== ids){
@@ -3227,6 +3244,13 @@ document.addEventListener("change", ev => {
   if(!i.dataset || !i.dataset.pw || i.dataset.pf === "name") return;
   pSet(i.dataset.pw, i.dataset.pf, i.value || (i.dataset.pf === "wake" ? "08:00" : "23:00"));  // an emptied field must not zero the week
   S.sm = Date.now(); save(); renderAll(); syncSoon();
+});
+document.addEventListener("change", ev => {
+  const i = ev.target;
+  if(!i.dataset || !i.dataset.cw) return;
+  const w = i.dataset.cw, raw = JSON.parse(JSON.stringify(S.pay)), cur = capOf(w);
+  raw.cap[w] = Object.assign({}, cur, i.dataset.cf === "h" ? {h: +i.value || 0} : {scope: i.value});
+  S.pay = normPay(raw); S.pm = Date.now(); save(); renderAll(); syncSoon();
 });
 $("#addPerson").onclick = () => {
   const w = PIDS.find(x => !people().includes(x)); if(!w) return;
@@ -3420,7 +3444,7 @@ function renderBreaks(){
       parseISO(a).toLocaleDateString(undefined, {day:"numeric", month:"short", year:"numeric"})} – ${
       parseISO(b).toLocaleDateString(undefined, {day:"numeric", month:"short", year:"numeric"})}</span>
       <button type="button" class="x" data-brdel="${i}" title="Remove">✕</button></div>`).join("")
-    : `<div class="none" style="margin-bottom:10px">No break weeks. Every week has the 20h limit.</div>`;
+    : `<div class="none" style="margin-bottom:10px">No break weeks. Every week keeps its on-campus cap.</div>`;
 }
 const setBreaks = B => { const raw = JSON.parse(JSON.stringify(S.pay)); raw.breaks = B; S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon(); renderAll(); };
 $("#brAdd").onclick = () => {
