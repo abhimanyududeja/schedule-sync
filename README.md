@@ -1,15 +1,16 @@
 # Schedule Sync
 
-A shared calendar for two people (roommates, friends, anyone) that finds the hours you're both free.
+A shared calendar for up to six people (roommates, friends, a team) that finds the hours you're all free.
 It runs in the browser as a single HTML file, with no build step and no account.
 
 **Open it:** https://abhimanyududeja.github.io/schedule-sync/
 
 ## What it does
 
-- **Week view**: both people's shifts side by side, with the free time you share shaded in.
-  Drag to move or resize; tap empty space to add a shift.
-- **Free Together**: every window you're both awake and free, exportable to your calendar.
+- **Week view**: everyone's schedule side by side, with the time you're all free shaded in.
+  Tap a name to show or hide that person. Drag to move or resize; tap empty space to add a block.
+- **Free Together**: every window when everyone shown is awake and free, for a house meeting,
+  cleaning day or groceries run, exportable to your calendar.
 - **Hours**: hours per job each week, a 20h on-campus meter for student visas, a weekly
   minimum for a job if it asks for one, and warnings when a new shift would go over 20h
   or an overnight runs into a morning class.
@@ -20,13 +21,13 @@ It runs in the browser as a single HTML file, with no build step and no account.
 
 ## Sharing
 
-Open **Settings → Start a shared calendar**, copy the invite link and send it to the one
-person you share with. Changes show up on both devices within a few seconds.
+Add everyone under **Settings → People**, then **Start a shared calendar**, copy the invite
+link and send it to the people you share with. Changes show up on every device within a few seconds.
 
 Each shared calendar is stored under a long random room code. The database only ever
 returns the room whose code a request carries, so one calendar can't read another.
 Anyone who has your invite link can see and edit your calendar, so send it only to the
-person you're sharing with.
+people you're sharing with.
 
 ## Using your own Supabase project
 

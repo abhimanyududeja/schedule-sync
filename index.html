@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Schedule Sync: when are we both free?</title>
+<title>Schedule Sync: when is everyone free?</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -19,6 +19,10 @@
     --text:#e7e9ee; --dim:#9aa3b5; --faint:#7f8899;
     --a:#6d8cff; --a-soft:#6d8cff33; --a-line:#6d8cff88; --a-text:#cdd8ff; --a-wash:#6d8cff0e;
     --b:#ff77b0; --b-soft:#ff77b033; --b-line:#ff77b088; --b-text:#ffd2e6;
+    --c:#f5a524; --c-soft:#f5a52433; --c-line:#f5a52488; --c-text:#ffe2b0;
+    --d:#a78bfa; --d-soft:#a78bfa33; --d-line:#a78bfa88; --d-text:#e4dbff;
+    --e:#22d3ee; --e-soft:#22d3ee2e; --e-line:#22d3ee80; --e-text:#c4f4fb;
+    --g:#f87171; --g-soft:#f8717133; --g-line:#f8717188; --g-text:#ffd0d0;
     --free:#3ddc97; --free-soft:#3ddc9722; --free-line:#3ddc9766;
     --warn:#ffb45c; --err:#ff9aa8;
     --danger-bg:#3a1f27; --danger-fg:#ff9aa8; --danger-line:#5a2b36;
@@ -34,6 +38,10 @@
     --text:#161a23; --dim:#525b6b; --faint:#666f80;
     --a:#3b5bdb; --a-soft:#3b5bdb1f; --a-line:#3b5bdb7a; --a-text:#22348f; --a-wash:#3b5bdb0a;
     --b:#d6336c; --b-soft:#d6336c1c; --b-line:#d6336c73; --b-text:#8f1d45;
+    --c:#b45309; --c-soft:#b453091c; --c-line:#b4530973; --c-text:#7c3a06;
+    --d:#6d28d9; --d-soft:#6d28d91c; --d-line:#6d28d973; --d-text:#4c1d95;
+    --e:#0e7490; --e-soft:#0e74901c; --e-line:#0e749073; --e-text:#164e63;
+    --g:#b91c1c; --g-soft:#b91c1c1c; --g-line:#b91c1c73; --g-text:#7f1d1d;
     --free:#0a7350; --free-soft:#0ca6781f; --free-line:#0ca67877;
     --warn:#c2570a; --err:#c92a4a;
     --danger-bg:#fdeaee; --danger-fg:#b02a41; --danger-line:#f2c2cc;
@@ -121,6 +129,22 @@
   .ev:hover .grip.bot{background:linear-gradient(transparent,currentColor)}
   .ev.a{background:var(--a-soft);border-color:var(--a-line);color:var(--a-text)}
   .ev.b{background:var(--b-soft);border-color:var(--b-line);color:var(--b-text)}
+  .ev.c{background:var(--c-soft);border-color:var(--c-line);color:var(--c-text)}
+  .hcard.c{--who:var(--c)} .dot.c{background:var(--c)}
+  .sw.c{background:var(--c-soft);border-color:var(--c-line)}
+  .askwho button.on.pc{border-color:var(--c);background:var(--c-soft)}
+  .ev.d{background:var(--d-soft);border-color:var(--d-line);color:var(--d-text)}
+  .hcard.d{--who:var(--d)} .dot.d{background:var(--d)}
+  .sw.d{background:var(--d-soft);border-color:var(--d-line)}
+  .askwho button.on.pd{border-color:var(--d);background:var(--d-soft)}
+  .ev.e{background:var(--e-soft);border-color:var(--e-line);color:var(--e-text)}
+  .hcard.e{--who:var(--e)} .dot.e{background:var(--e)}
+  .sw.e{background:var(--e-soft);border-color:var(--e-line)}
+  .askwho button.on.pe{border-color:var(--e);background:var(--e-soft)}
+  .ev.g{background:var(--g-soft);border-color:var(--g-line);color:var(--g-text)}
+  .hcard.g{--who:var(--g)} .dot.g{background:var(--g)}
+  .sw.g{background:var(--g-soft);border-color:var(--g-line)}
+  .askwho button.on.pg{border-color:var(--g);background:var(--g-soft)}
   .ev.rep{border-style:dashed}
   .ev.ghost{background:var(--free-soft);border:1px dashed var(--free);color:var(--free);
     pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:11px}
@@ -218,6 +242,8 @@
   .x:hover{color:var(--err);background:var(--hover)}
   details.adv{margin-top:12px}
   details.adv summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--dim)}
+  .prow2{align-items:flex-end;margin-bottom:8px}
+  .prow2 .x{margin-bottom:8px}
   .brow{display:flex;align-items:center;gap:10px;justify-content:space-between;max-width:360px;padding:7px 10px;
     margin-bottom:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;font-size:13px}
   .hcard .tot .cap.open i{background:var(--free)}
@@ -395,6 +421,9 @@
   .hint code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--dim)}
   .msg{margin-top:10px;font-size:12.5px;color:var(--free)}
   .msg.err{color:var(--err)} .msg.warn{color:var(--warn)}
+  .legend #lgPeople{display:contents}
+  .legend .who{background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;display:inline-flex;align-items:center}
+  .legend .who.off{opacity:.4;text-decoration:line-through}
   .legend{display:flex;gap:8px 14px;flex-wrap:wrap;font-size:12px;color:var(--dim);
     margin-bottom:12px;align-items:center}
   .legend .dragtip{color:var(--faint)}
@@ -402,7 +431,7 @@
   .sw{width:22px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px;border:1px solid}
   .sw.a{background:var(--a-soft);border-color:var(--a-line)}
   .sw.b{background:var(--b-soft);border-color:var(--b-line)}
-  .sw.f{background:var(--free-soft);border-color:var(--free-line)}
+  .sw.free{background:var(--free-soft);border-color:var(--free-line)}
 
   /* photo */
   .drop{border:2px dashed var(--line);border-radius:var(--r);padding:34px 20px;text-align:center;color:var(--dim);
@@ -507,9 +536,8 @@
   </details>
 
   <div class="legend">
-    <span><i class="sw a"></i><b id="lgA">You</b></span>
-    <span><i class="sw b"></i><b id="lgB">Person 2</b></span>
-    <span><i class="sw f"></i>Both free</span>
+    <span id="lgPeople"></span>
+    <span><i class="sw free"></i><b id="lgFree">Both free</b></span>
     <span class="dragtip" title="Dashed edges mean the block repeats every week">Click to edit · drag to move or resize</span>
     <span class="wkacts">
       <button class="btn ghost sm" id="copyPrev" title="Copy last week's one-off shifts into this week">⧉ Copy last week</button>
@@ -638,8 +666,8 @@
   <div class="card">
     <h2>Share with someone <span id="syncState" class="tag">off</span></h2>
     <p class="hint" style="margin:0 0 12px">
-      Start a shared calendar here, then send the invite link to the one person you're sharing with.
-      Changes show up on both of your devices within a few seconds. Your calendar is stored online under a
+      Start a shared calendar here, then send the invite link to the people you're sharing with.
+      Changes show up on everyone's devices within a few seconds. Your calendar is stored online under a
       long random room code: anyone with the link can see and change it, so send it only to them.
     </p>
     <div class="row" id="syncSimple">
@@ -649,7 +677,7 @@
       <button class="btn ghost" id="joinBtn">Join</button>
     </div>
     <div class="row" id="inviteBox" style="display:none">
-      <div class="f" style="flex:1;min-width:240px"><label>Invite link: send it to the person you're sharing with</label>
+      <div class="f" style="flex:1;min-width:240px"><label>Invite link: send it to the people you're sharing with</label>
         <input id="inviteLink" readonly></div>
       <button class="btn" id="inviteCopy">Copy link</button>
       <button class="btn ghost" id="syncOff">Stop sharing on this device</button>
@@ -694,20 +722,10 @@
   </div>
 
   <div class="card">
-    <h2>Names</h2>
-    <div class="row" style="margin-bottom:18px">
-      <div class="f"><label><span class="dot a"></span> You</label>
-        <input id="nameA" maxlength="24" placeholder="Your name"></div>
-      <div class="f"><label><span class="dot b"></span> The other person</label>
-        <input id="nameB" maxlength="24" placeholder="Their name"></div>
-    </div>
-    <h2>Waking hours: free time is only counted inside these</h2>
-    <div class="row">
-      <div class="f"><label><span class="dot a"></span> <b id="stA">You</b> up at</label><input id="wakeA" type="time" value="08:00"></div>
-      <div class="f"><label>in bed by</label><input id="sleepA" type="time" value="23:00"></div>
-      <div class="f" style="margin-left:20px"><label><span class="dot b"></span> <b id="stB">Person 2</b> up at</label><input id="wakeB" type="time" value="08:00"></div>
-      <div class="f"><label>in bed by</label><input id="sleepB" type="time" value="23:00"></div>
-    </div>
+    <h2>People: up to six share a calendar</h2>
+    <p class="hint" style="margin:-4px 0 12px">Free time only counts between when each person gets up and goes to bed.</p>
+    <div id="peopleList"></div>
+    <button class="btn ghost" id="addPerson">+ Add a person</button>
   </div>
   <div class="card">
     <h2>Break weeks: no 20h on-campus limit</h2>
@@ -725,8 +743,7 @@
   <div class="card">
     <h2>Danger zone</h2>
     <div class="row">
-      <button class="btn danger" id="clrA">Clear all of your blocks</button>
-      <button class="btn danger" id="clrB">Clear all of the other person's blocks</button>
+      <span id="clrPeople" style="display:contents"></span>
       <button class="btn danger" id="clrAll">Clear everything</button>
     </div>
   </div>
@@ -765,7 +782,7 @@ const JOB_TEMPLATES = [
 ];
 const jobsOf = w => (S.pay && S.pay.jobs[w]) || [];
 const placesOf = w => jobsOf(w).filter(j => !j.hide).map(j => [j.k, j.label]).concat([["other","Other"]]);
-const jobOf = k => jobsOf("a").find(j => j.k === k) || jobsOf("b").find(j => j.k === k);
+const jobOf = k => { for(const w of PIDS){ const j = jobsOf(w).find(x => x.k === k); if(j) return j; } };
 const jobHas = (k, f) => !!(jobOf(k) || {})[f];
 /* Campus jobs and co-ops are counted separately: they sit under different
    rules and it is the split you actually want to read. */
@@ -891,7 +908,22 @@ function fillPlaces(sel, person){
   });
 }
 
-const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"",
+/* Up to six people share a calendar. The first two keep their original fields
+   (nameA, wakeA...) so older copies of the app still read them; people three to
+   six live in S.crew, keyed c, d, e, g. */
+const PIDS = ["a","b","c","d","e","g"], MAXP = PIDS.length;   // no "f": .f is the form-field class
+const perP = make => Object.fromEntries(PIDS.map(w => [w, make()]));
+const people = () => ["a","b"].concat(PIDS.slice(2).filter(w => S.crew && S.crew[w]));
+const pGet = (w, f) => w === "a" || w === "b" ? S[f + w.toUpperCase()] : ((S.crew || {})[w] || {})[f];
+function pSet(w, f, v){
+  if(w === "a" || w === "b") S[f + w.toUpperCase()] = v;
+  else { S.crew = Object.assign({}, S.crew); S.crew[w] = Object.assign({name:"", wake:"08:00", sleep:"23:00"}, S.crew[w], {[f]: v}); }
+}
+/* Each device can hide people from the week view and Free Together. */
+let HIDDEN = new Set();
+try{ HIDDEN = new Set(JSON.parse(localStorage.getItem("schedsync-hidden") || "[]")); }catch(e){}
+const shownPeople = () => { const s = people().filter(w => !HIDDEN.has(w)); return s.length ? s : people(); };
+const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"", crew:{},
   wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[], feeds:[],
   pay:normPay(null), pm:0});
 /* Everything about work and pay, per person: the jobs, what each pays an hour
@@ -900,14 +932,14 @@ const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"",
    It syncs with the room. Anything malformed comes back as the empty shape. */
 function normPay(p){
   const n = v => { const x = +v; return x > 0 && x < 1000 ? Math.round(x * 100) / 100 : 0; };
-  const out = {rate:{a:{}, b:{}}, night:{a:{}, b:{}}, tip:{a:{}, b:{}}, unpaid:{a:{}, b:{}}, tax:{a:0, b:0}, actual:{a:{}, b:{}},
-               jobs:{a:[], b:[]}, payrolls:{a:[], b:[]}, min:{a:null, b:null}, breaks:[]};
+  const out = {rate:perP(() => ({})), night:perP(() => ({})), tip:perP(() => ({})), unpaid:perP(() => ({})), tax:perP(() => 0),
+               actual:perP(() => ({})), jobs:perP(() => []), payrolls:perP(() => []), min:perP(() => null), breaks:[]};
   const iso = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
   const str = (v, n = 40) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
   const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
   const pct = v => { const x = +v; return x > 0 && x < 100 ? Math.round(x * 100) / 100 : 0; };
   const cents = v => { const x = +v; return x >= 0 && x < 100000 ? Math.round(x * 100) / 100 : NaN; };
-  ["a","b"].forEach(w => {
+  PIDS.forEach(w => {
     ["rate","night","tip"].forEach(f =>
       Object.entries((p && p[f] && p[f][w]) || {}).forEach(([k,v]) => { if(n(v)) out[f][w][k] = n(v); }));
     Object.entries((p && p.unpaid && p.unpaid[w]) || {}).forEach(([k,v]) => { if(v === true) out.unpaid[w][k] = true; });
@@ -956,8 +988,7 @@ const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const el = (t,c,h) => { const n = document.createElement(t); if(c) n.className = c; if(h != null) n.innerHTML = h; return n; };
 const pad = n => String(n).padStart(2,"0");
-const nameOf = w => (String(w === "a" ? S.nameA : S.nameB || "").slice(0,24).trim())
-                    || (w === "a" ? "You" : "Person 2");
+const nameOf = w => String(pGet(w, "name") || "").slice(0,24).trim() || (w === "a" ? "You" : `Person ${PIDS.indexOf(w) + 1}`);
 const escapeHTML = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================= dates ================= */
@@ -1114,7 +1145,7 @@ function mergeStates(local, remote){
      side that has the settings wins over one that lost them. */
   if((remote.pm||0) === (local.pm||0)){
     const other = normPay((payer === remote ? local : remote).pay);
-    ["a","b"].forEach(w => {
+    PIDS.forEach(w => {
       ["jobs","payrolls"].forEach(f => { if(!pay[f][w].length && other[f][w].length) pay[f][w] = other[f][w]; });
       if(!pay.min[w] && other.min[w]) pay.min[w] = other.min[w];
       if(!Object.keys(pay.actual[w]).length && Object.keys(other.actual[w]).length) pay.actual[w] = other.actual[w];
@@ -1124,7 +1155,7 @@ function mergeStates(local, remote){
   return Object.assign({}, local, {
     pay, pm:payer.pm||0,
     events, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
-    sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB,
+    sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB, crew:newer.crew || {},
     wakeA:newer.wakeA, sleepA:newer.sleepA, wakeB:newer.wakeB, sleepB:newer.sleepB
   });
 }
@@ -1268,7 +1299,7 @@ function compactTomb(d){
 /* Everything that actually travels between the two laptops. Used to decide
    whether a push is worth making at all. */
 const syncSig = d => JSON.stringify([d.events, d.tomb, d.feeds, d.sm,
-  d.nameA, d.nameB, d.wakeA, d.sleepA, d.wakeB, d.sleepB, d.pay, d.pm]);
+  d.nameA, d.nameB, d.wakeA, d.sleepA, d.wakeB, d.sleepB, d.crew, d.pay, d.pm]);
 
 /* A stamp check is ~60 bytes; the document is ~17 KB. Only pull the document
    when the stamp says it changed. */
@@ -1478,24 +1509,25 @@ const busyOf = (who,d) => merge(weekEvents(VIEW).filter(e => e.person===who && e
 /* A blank or inverted waking window would silently zero out the whole week,
    so fall back to the full day and let badWake() surface the problem. */
 function awake(who){
-  const lo = toMin(who === "a" ? S.wakeA : S.wakeB), hi = toMin(who === "a" ? S.sleepA : S.sleepB);
+  const lo = toMin(pGet(who, "wake")), hi = toMin(pGet(who, "sleep"));
   return (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo) ? [[lo,hi]] : [[0,1440]];
 }
 function badWake(){
   const out = [];
-  ["a","b"].forEach(w => {
-    const lo = toMin(w === "a" ? S.wakeA : S.wakeB), hi = toMin(w === "a" ? S.sleepA : S.sleepB);
+  people().forEach(w => {
+    const lo = toMin(pGet(w, "wake")), hi = toMin(pGet(w, "sleep"));
     if(!(Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)) out.push(nameOf(w));
   });
   return out;
 }
-const freeTogether = d => intersect(subtract(awake("a"), busyOf("a",d)), subtract(awake("b"), busyOf("b",d)));
-const busyTogether = d => intersect(busyOf("a",d), busyOf("b",d));
+/* Free together means free for everyone shown; busy together, everyone busy. */
+const freeTogether = d => shownPeople().map(w => subtract(awake(w), busyOf(w, d))).reduce((p, q) => intersect(p, q));
+const busyTogether = d => shownPeople().map(w => busyOf(w, d)).reduce((p, q) => intersect(p, q));
 
 /* Showing one day on a phone, fit the timeline to that day, otherwise a single
    overnight shift somewhere in the week buries every other day under empty night. */
 function gridWindow(days){
-  let lo = Math.min(toMin(S.wakeA), toMin(S.wakeB)), hi = Math.max(toMin(S.sleepA), toMin(S.sleepB));
+  let lo = Math.min(...people().map(w => toMin(pGet(w, "wake")))), hi = Math.max(...people().map(w => toMin(pGet(w, "sleep"))));
   const scope = days ? weekEvents(VIEW).filter(e => days.includes(e.day)) : weekEvents(VIEW);
   for(const e of scope){ lo = Math.min(lo, e.start); hi = Math.max(hi, e.end); }
   return [Math.floor(lo/60)*60, Math.ceil(hi/60)*60];
@@ -1655,8 +1687,7 @@ function openEdit(e, isNew){
                            : "Change what it's called, when it is, or whose it is."}</p>
     <div class="row" style="margin-bottom:12px">
       <div class="f"><label>Whose</label><select class="eWho">
-        <option value="a">${escapeHTML(nameOf("a"))}</option>
-        <option value="b">${escapeHTML(nameOf("b"))}</option></select></div>
+        ${people().map(w => `<option value="${w}">${escapeHTML(nameOf(w))}</option>`).join("")}</select></div>
       <div class="f"><label>Where</label><select class="eKind"></select></div>
       <div class="f eShiftWrap"><label>Shift</label><select class="eShift"></select></div>
       <div class="f eStationWrap"><label>Station</label><select class="eStation"></select></div>
@@ -2007,10 +2038,11 @@ function renderGrid(){
     col.addEventListener("pointerdown", ev => startCreate(ev, col, d, lo));
     const dayEvents = weekEvents(VIEW).filter(x => x.day === d);
     const slots = new Map();
-    ["a","b"].forEach(w => laneLayout(dayEvents.filter(x => x.person === w), slots));
-    for(const e of dayEvents.sort((x,y) => x.start-y.start)){
+    const lanes = shownPeople(), share = 100 / lanes.length;
+    lanes.forEach(w => laneLayout(dayEvents.filter(x => x.person === w), slots));
+    for(const e of dayEvents.filter(x => lanes.includes(x.person)).sort((x,y) => x.start-y.start)){
       const tall = (e.end-e.start)*PX > 42;
-      const {c, n:ncols} = slots.get(e), laneL = e.person === "a" ? 0 : 50, laneW = 50/ncols;
+      const {c, n:ncols} = slots.get(e), laneL = lanes.indexOf(e.person) * share, laneW = share/ncols;
       const n = el("div","ev " + e.person + (e.week === null ? " rep" : ""),
         `<strong>${escapeHTML(e.title)}</strong><em>${fmt(e.start)}–${fmt(e.end)}</em>` +
         (tall ? `<em class="pl" style="color:${placeColor(e.kind)}">${escapeHTML(placeName(e.kind))}</em>` : ""));
@@ -2052,11 +2084,10 @@ function renderFree(){
     <div class="stat"><b>${bestD < 0 ? "none" : DAYS[bestD]}</b><span>${isFree ? "best day" : "busiest overlap"}</span></div>
     <div class="stat"><b>${longest[1] < 0 ? "none" : dur(longest[0])}</b><span>${longest[1] < 0 ? "longest" : "longest: " + DAYS[longest[1]] + " " + fmt(longest[2][0])}</span></div>`;
   /* A flat zero is nearly always a setup problem, not a real answer, so say which. */
-  const nA = weekEvents(VIEW).filter(e => e.person === "a").length;
-  const nB = weekEvents(VIEW).filter(e => e.person === "b").length;
+  const counts = shownPeople().map(w => [w, weekEvents(VIEW).filter(e => e.person === w).length]);
+  const withBlocks = counts.filter(([, n]) => n).length;
   const bw = badWake();
-  let why = `<b>${escapeHTML(nameOf("a"))}</b> ${nA} block${nA===1?"":"s"} · ` +
-            `<b>${escapeHTML(nameOf("b"))}</b> ${nB} block${nB===1?"":"s"} this week`;
+  let why = counts.map(([w, n]) => `<b>${escapeHTML(nameOf(w))}</b> ${n} block${n===1?"":"s"}`).join(" · ") + " this week";
   let cls = "note";
   if(bw.length){
     cls = "note warn";
@@ -2064,9 +2095,9 @@ function renderFree(){
           `so the whole day is being counted instead. Fix them under <b>Settings</b>. ` + why;
   }else if(isFree && total === 0){
     cls = "note warn";
-    why = (!nA && !nB) ? "No blocks in this week yet. Add some, or upload a photo. " + why
-      : (nA === 0 || nB === 0)
-        ? `Only one of you has blocks this week, so every waking hour should be free. If it says 0, check the minimum gap above. ${why}`
+    why = !withBlocks ? "No blocks in this week yet. Add some, or upload a photo. " + why
+      : withBlocks < counts.length
+        ? `Not everyone has blocks this week, so their waking hours all count as free. If it says 0, check the minimum gap above. ${why}`
         : `Nothing is free for ${dur(+$("#minGap").value)} straight this week. Try a smaller minimum gap, or check the waking hours in <b>Settings</b>. ${why}`;
   }
   $("#why").className = cls;
@@ -2183,12 +2214,12 @@ function renderHours(){
   const prevIso = isoOf(addDays(parseISO(VIEW), -7));
   // one scale across both people so the bars are comparable side by side
   let peak = 0;
-  ["a","b"].forEach(w => Object.values(hoursFor(w, VIEW)).forEach(v => peak = Math.max(peak, v.mins)));
+  people().forEach(w => Object.values(hoursFor(w, VIEW)).forEach(v => peak = Math.max(peak, v.mins)));
 
   /* Both cards sit side by side, so work the two of you out first and then show
      the same cells on each. Hiding a group on one card and not the other left the
      remaining cells stretched to different widths, and nothing lined up. */
-  const people = ["a","b"].map(w => {
+  const cards = people().map(w => {
     const by = hoursFor(w, VIEW), rows = Object.entries(by).sort((x,y) => y[1].mins - x[1].mins);
     const total = rows.reduce((t,[,v]) => t + v.mins, 0);
     const last  = Object.values(hoursFor(w, prevIso)).reduce((t,v) => t + v.mins, 0);
@@ -2196,15 +2227,15 @@ function renderHours(){
     rows.forEach(([k,v]) => split[placeGroup(k)] += v.mins);
     return { w, rows, total, last, split };
   });
-  const grand = people.reduce((t,p) => t + p.total, 0);
+  const grand = cards.reduce((t,p) => t + p.total, 0);
   /* A group nobody worked stays hidden. One either of you worked still sets the
      column count on both cards, so the cells come out the same width and the rows
      below them start at the same height, without padding anyone out with a 0h. */
   const shown = [["off","Off campus"], ["coop","Co-op"], ["other","Other"]]
-    .filter(([g]) => people.some(p => p.split[g]));
+    .filter(([g]) => cards.some(p => p.split[g]));
 
   const brk = breakWeek(VIEW);
-  people.forEach(({ w, rows, total, last, split }) => {
+  cards.forEach(({ w, rows, total, last, split }) => {
     const diff = total - last;
     const over = !brk && split.campus > CAMPUS_CAP;
     const mn = minOf(w), need = mn ? mn.h * 60 : 0, inMin = minWeek(w, VIEW);
@@ -2245,7 +2276,7 @@ function renderHours(){
        : `<div class="none">No shifts this week.</div>`);
     host.appendChild(card);
   });
-  const over = ["a","b"].map(w => {
+  const over = people().map(w => {
     const mins = Object.entries(hoursFor(w, VIEW))
       .filter(([k]) => placeGroup(k) === "campus")
       .reduce((t,[,v]) => t + v.mins, 0);
@@ -2444,7 +2475,7 @@ function rateRows(w){
 }
 /* A short key for a new job, unique across both people's lists. */
 function newJobKey(base){
-  const taken = new Set(jobsOf("a").concat(jobsOf("b")).map(j => j.k));
+  const taken = new Set(PIDS.flatMap(jobsOf).map(j => j.k));
   if(base && !taken.has(base)) return base;
   let k; do k = "j" + Math.random().toString(36).slice(2, 7); while(taken.has(k));
   return k;
@@ -2458,10 +2489,10 @@ function cfgChange(i, kind){
   } else if(kind === "jobadd"){
     const t = JOB_TEMPLATES.find(([id]) => id === val); if(!t) return;
     const own = raw.jobs[w].some(x => x.k === "rso");
-    const used = new Set(raw.jobs.a.concat(raw.jobs.b).map(x => x.c));
+    const used = new Set(PIDS.flatMap(x => raw.jobs[x]).map(x => x.c));
     const c = [...PALETTE.keys()].find(n => !used.has(n)) ?? raw.jobs[w].length % PALETTE.length;
     // RSO keeps one key, so two people who both work there share its stations and colour
-    const k2 = t[0] === "rso" && !own && jobsOf(w === "a" ? "b" : "a").some(x => x.k === "rso") ? "rso" : newJobKey(t[0] === "rso" ? "rso" : "");
+    const k2 = t[0] === "rso" && !own && PIDS.some(x => x !== w && jobsOf(x).some(j => j.k === "rso")) ? "rso" : newJobKey(t[0] === "rso" ? "rso" : "");
     raw.jobs[w].push({k: k2, c: (jobOf(k2) || {}).c ?? c, ...t[2]});
     if(t[2].group === "coop") raw.unpaid[w][k2] = true;
   } else if(kind === "jobdel"){
@@ -2516,7 +2547,7 @@ function renderPay(force){
   const lo = addDays(parseISO(VIEW), -7), hi = addDays(parseISO(VIEW), 27);
   const ref = Math.max(Date.now() - DAY, parseISO(VIEW).getTime());
   const all = [];
-  host.innerHTML = ["a","b"].map(w => {
+  host.innerHTML = people().map(w => {
     const checks = paychecksFor(w, lo, hi);
     all.push(...checks.map(c => ({...c, w})));
     // the headline is the regular paycheck; an odd paid-on-the-day shift stays in the list below it
@@ -2600,13 +2631,14 @@ document.addEventListener("click", ev => {
   SLIP = null; renderPay(true);
 });
 function monthTable(){
+  if(MONTH_WHO !== "all" && !people().includes(MONTH_WHO)) MONTH_WHO = "a";
   const dated = S.events.filter(e => e.week).map(e => e.week).sort();
   if(!dated.length) return "";
   const today = new Date(), first = parseISO(dated[0]);
   const lo = new Date(first.getFullYear(), first.getMonth(), 1);
   const hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
   const months = new Map();
-  (MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
+  (MONTH_WHO === "all" ? people() : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
     if(!(c.mins || c.actual) || !c.gross) return;
     const key = c.payday.getFullYear() * 12 + c.payday.getMonth();
     const m = months.get(key) || {gross:0, net:0, n:0, cash:0};
@@ -2619,7 +2651,7 @@ function monthTable(){
   const name = (key, month = "long") => new Date(Math.floor(key / 12), key % 12, 1).toLocaleDateString(undefined, {month, year:"numeric"});
   const tab = (v, label) => `<button type="button" data-mwho="${v}" class="${MONTH_WHO === v ? "on" : ""}">${label}</button>`;
   return `<div class="hcard months">
-    <h3>By month<span class="hsub mseg">${tab("a", escapeHTML(nameOf("a")))}${tab("b", escapeHTML(nameOf("b")))}${tab("both", "Both")}</span></h3>
+    <h3>By month<span class="hsub mseg">${people().map(w => tab(w, escapeHTML(nameOf(w)))).join("")}${tab("all", people().length > 2 ? "Everyone" : "Both")}</span></h3>
     ${rows.length ? `<table class="mtable"><thead><tr><th>Month</th><th>Before tax</th><th>Tax</th><th>After tax</th></tr></thead><tbody>
       ${rows.map(([key, m]) => `<tr class="${key === nowKey ? "cur" : key > nowKey ? "ahead" : ""}">
         <td><b class="ml">${name(key)}</b><b class="ms">${name(key, "short")}</b><span>${m.n} paycheck${m.n === 1 ? "" : "s"}${
@@ -2637,7 +2669,7 @@ function monthTable(){
    year gets all of it back after filing, so this is the most that could return. */
 function refundBox(){
   const now = new Date(), yr = now.getFullYear();
-  const who = MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO];
+  const who = MONTH_WHO === "all" ? people() : [MONTH_WHO];
   let held = 0, coming = 0;
   who.forEach(w => paychecksFor(w, new Date(yr, 0, 1), new Date(yr, 11, 31)).forEach(c => {
     const t = c.gross - c.net;
@@ -2654,7 +2686,7 @@ function payCsv(){
   const lo = new Date(first.getFullYear(), first.getMonth(), 1), hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
   const q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
   const lines = [["Person","Payday","Employer","Job","Period start","Period end","Hours","Before tax","Tax","After tax","Status","Source"]];
-  (MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
+  (MONTH_WHO === "all" ? people() : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
     if(!(c.mins || c.actual) || !c.gross) return;
     const jobs = c.jobs.size ? [...c.jobs.keys()].map(placeName).join(" + ") : c.pr.label;
     lines.push([nameOf(w), isoOf(c.payday), c.pr.label, jobs, isoOf(c.start), isoOf(c.end), (c.mins / 60).toFixed(2),
@@ -2662,7 +2694,7 @@ function payCsv(){
       {paid:"paid", due:"on its way", now:"in progress", later:"scheduled"}[c.state],
       c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"]);
   }));
-  download(`pay-${MONTH_WHO === "both" ? "both" : nameOf(MONTH_WHO).toLowerCase()}-${isoOf(today)}.csv`,
+  download(`pay-${MONTH_WHO === "all" ? "everyone" : nameOf(MONTH_WHO).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${isoOf(today)}.csv`,
     lines.map(r => r.map(q).join(",")).join("\n"), "text/csv");
 }
 document.addEventListener("click", ev => { if(ev.target.closest && ev.target.closest("#payCsv")) payCsv(); });
@@ -2690,20 +2722,18 @@ document.addEventListener("change", ev => {
 });
 
 function renderAll(){
-  $("#nameA").value = S.nameA; $("#nameB").value = S.nameB;
-  $("#lgA").textContent = $("#stA").textContent = nameOf("a");
-  $("#lgB").textContent = $("#stB").textContent = nameOf("b");
+  renderPeople();
   ["#fPerson","#pWhoA"].forEach(()=>{});
-  ["#fPerson","#feedWho"].forEach(id => { $(id).options[0].text = nameOf("a"); $(id).options[1].text = nameOf("b"); });
-  $("#clrA").textContent = `Clear all of ${nameOf("a")}'s blocks`;
-  $("#clrB").textContent = `Clear all of ${nameOf("b")}'s blocks`;
+  ["#fPerson","#feedWho"].forEach(id => {
+    const sel = $(id), keep = people().includes(sel.value) ? sel.value : "a";
+    sel.innerHTML = people().map(w => `<option value="${w}">${escapeHTML(nameOf(w))}</option>`).join("");
+    sel.value = keep;
+  });
   renderBreaks();
   fillPlaces($("#fKind"), $("#fPerson").value);
   fillStations($("#fStation"), $("#fStation").value);
   syncAddStation();
   fillPlaces($("#feedKind"), $("#feedWho").value);
-  $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
-  $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
   renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours();
   renderPay(); save();
   if(document.getElementById('feedState')) renderFeeds();
@@ -2755,8 +2785,7 @@ function renderReview(bad, source){
   box.innerHTML = `<h3>Found ${STAGE.length} block${STAGE.length===1?"":"s"}. Whose schedule is this?</h3>
     <p class="sub">Nothing is added until you pick a person and confirm.</p>
     <div class="askwho">
-      <button class="pa" data-w="a"><b>${escapeHTML(nameOf("a"))}</b><small>mine</small></button>
-      <button class="pb" data-w="b"><b>${escapeHTML(nameOf("b"))}</b><small>hers</small></button>
+      ${people().map(w => `<button class="p${w}" data-w="${w}"><b>${escapeHTML(nameOf(w))}</b><small>${w === "a" ? "mine" : "theirs"}</small></button>`).join("")}
     </div>
     <div class="row" style="margin-bottom:12px">
       <div class="f"><label>These blocks</label>
@@ -3098,7 +3127,7 @@ $("#icsBtn").onclick = () => {
     const e = addDays(wkStart,d); e.setMinutes(b);
     out.push("BEGIN:VEVENT",`UID:ss-${VIEW}-${d}-${a}-${n++}@schedulesync`,`DTSTAMP:${stamp(new Date())}`,
       `DTSTART:${stamp(s)}`,`DTEND:${stamp(e)}`,`SUMMARY:Free together (${dur(b-a)})`,
-      `DESCRIPTION:${nameOf("a")} and ${nameOf("b")} are both free.`,"END:VEVENT");
+      `DESCRIPTION:${shownPeople().map(nameOf).join(", ")}: everyone is free.`,"END:VEVENT");
   }));
   out.push("END:VCALENDAR");
   if(!n) return alert("No free windows that long in this week.");
@@ -3126,8 +3155,10 @@ $("#linkBtn").onclick = () => {
 };
 function note(t, err){ const m = $("#expMsg"); m.className = "msg" + (err ? " err" : ""); m.textContent = t; }
 
-$("#clrA").onclick   = () => { if(confirm("Delete all of " + nameOf("a") + "'s blocks, every week?")){ bulkDelete(e => e.person === "a"); } };
-$("#clrB").onclick   = () => { if(confirm("Delete all of " + nameOf("b") + "'s blocks, every week?")){ bulkDelete(e => e.person === "b"); } };
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-clr]");
+  if(b && confirm("Delete all of " + nameOf(b.dataset.clr) + "'s blocks, every week?")) bulkDelete(e => e.person === b.dataset.clr);
+});
 $("#clrAll").onclick = () => { if(confirm("Delete everything and start over?")){ S = blank(); uid = 1; renderAll(); } };
 
 /* wiring */
@@ -3160,19 +3191,67 @@ const fImpact = () => {
 fImpact();
 /* A stray paste into the name box used to blow out every dropdown, so cap it. */
 const NAME_MAX = 24;
-function setName(which, raw, input){
-  const v = String(raw).replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
-  S[which] = v;
-  if(input.value !== v) input.value = v;
-  S.sm = Date.now(); renderAll(); syncSoon();
+/* Settings -> People: names, waking hours, and adding or removing people 3-6.
+   The rows are rebuilt from S, except while one has the cursor. */
+function renderPeople(){
+  const host = $("#peopleList"); if(!host) return;
+  const typing = host.contains(document.activeElement) ? document.activeElement : null, ids = people().join();
+  // rebuilt unless a box has the cursor and nobody was added or removed
+  if(!typing || host.dataset.ids !== ids) host.innerHTML = people().map(w => `<div class="row prow2">
+      <div class="f"><label><span class="dot ${w}"></span> ${w === "a" ? "You" : "Person " + (PIDS.indexOf(w) + 1)}</label>
+        <input data-pw="${w}" data-pf="name" maxlength="24" placeholder="${w === "a" ? "Your name" : "Their name"}" value="${escapeHTML(pGet(w, "name") || "")}"></div>
+      <div class="f"><label>up at</label><input data-pw="${w}" data-pf="wake" type="time" value="${pGet(w, "wake") || "08:00"}"></div>
+      <div class="f"><label>in bed by</label><input data-pw="${w}" data-pf="sleep" type="time" value="${pGet(w, "sleep") || "23:00"}"></div>
+      ${w === "a" || w === "b" ? "" : `<button type="button" class="x" data-prm="${w}" title="Remove ${escapeHTML(nameOf(w))}">✕</button>`}
+    </div>`).join("");
+  if(typing && host.dataset.ids !== ids){
+    const back = host.querySelector(`input[data-pw="${typing.dataset.pw}"][data-pf="${typing.dataset.pf}"]`); if(back) back.focus();
+  }
+  host.dataset.ids = ids;
+  $("#addPerson").style.display = people().length < MAXP ? "" : "none";
+  $("#clrPeople").innerHTML = people().map(w => `<button class="btn danger" data-clr="${w}">Clear all of ${escapeHTML(nameOf(w))}'s blocks</button>`).join("");
+  const lg = $("#lgPeople");
+  lg.innerHTML = people().map(w => `<button type="button" class="who${HIDDEN.has(w) ? " off" : ""}" data-hide="${w}"
+      title="Show or hide ${escapeHTML(nameOf(w))}"><i class="sw ${w}"></i><b>${escapeHTML(nameOf(w))}</b></button>`).join("");
+  $("#lgFree").textContent = shownPeople().length > 2 ? "Everyone free" : shownPeople().length === 2 ? "Both free" : "Free";
 }
-$("#nameA").oninput = e => setName("nameA", e.target.value, e.target);
-$("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
-["wakeA","sleepA","wakeB","sleepB"].forEach(k => $("#" + k).onchange = e => {
-  S[k] = e.target.value || blank()[k];      // an emptied field must not zero the week
-  S.sm = Date.now();
-  e.target.value = S[k];
-  renderAll(); syncSoon();
+document.addEventListener("input", ev => {
+  const i = ev.target;
+  if(!i.dataset || i.dataset.pf !== "name") return;
+  const v = String(i.value).replace(/\s+/g, " ").trimStart().slice(0, NAME_MAX);
+  pSet(i.dataset.pw, "name", v.trim());
+  S.sm = Date.now(); save(); renderAll(); syncSoon();
+});
+document.addEventListener("change", ev => {
+  const i = ev.target;
+  if(!i.dataset || !i.dataset.pw || i.dataset.pf === "name") return;
+  pSet(i.dataset.pw, i.dataset.pf, i.value || (i.dataset.pf === "wake" ? "08:00" : "23:00"));  // an emptied field must not zero the week
+  S.sm = Date.now(); save(); renderAll(); syncSoon();
+});
+$("#addPerson").onclick = () => {
+  const w = PIDS.find(x => !people().includes(x)); if(!w) return;
+  pSet(w, "name", ""); S.sm = Date.now(); save(); renderAll(); syncSoon();
+  setTimeout(() => { const n = $(`#peopleList input[data-pw="${w}"][data-pf="name"]`); if(n) n.focus(); });
+};
+document.addEventListener("click", ev => {
+  const rm = ev.target.closest && ev.target.closest("[data-prm]");
+  if(rm){
+    const w = rm.dataset.prm, n = S.events.filter(e => e.person === w).length;
+    if(!confirm(`Remove ${nameOf(w)}${n ? ` and their ${n} block${n === 1 ? "" : "s"}` : ""}? This can't be undone.`)) return;
+    const t = Date.now();
+    S.events.filter(e => e.person === w).forEach(e => S.tomb.push({k: e.id, t}));
+    S.events = S.events.filter(e => e.person !== w);
+    S.crew = Object.assign({}, S.crew); delete S.crew[w];
+    HIDDEN.delete(w); S.sm = t; save(); renderAll(); syncSoon();
+    return;
+  }
+  const h = ev.target.closest && ev.target.closest("[data-hide]");
+  if(h){
+    const w = h.dataset.hide;
+    if(HIDDEN.has(w)) HIDDEN.delete(w); else if(shownPeople().length > 1) HIDDEN.add(w);
+    try{ localStorage.setItem("schedsync-hidden", JSON.stringify([...HIDDEN])); }catch(e){}
+    renderAll();
+  }
 });
 $("#minGap").onchange = renderFree;
 $("#freeMode").onchange = renderFree;
@@ -3308,7 +3387,7 @@ $("#syncSave").onclick = async () => {
 };
 $("#syncStart").onclick = async () => {
   dirty = true;                       // this device's calendar becomes the shared one
-  await connect({...SHARED, room:newRoomCode()}, "Shared calendar started. Copy the invite link and send it to the person you're sharing with.");
+  await connect({...SHARED, room:newRoomCode()}, "Shared calendar started. Copy the invite link and send it to the people you're sharing with.");
 };
 /* Joining starts this device fresh. Whatever it held before is set aside as a
    backup, never copied into someone else's calendar. */
@@ -3325,7 +3404,7 @@ async function joinRoom(room){
 }
 $("#joinBtn").onclick = () => joinRoom(roomFrom($("#joinCode").value));
 $("#inviteCopy").onclick = () => navigator.clipboard.writeText($("#inviteLink").value)
-  .then(() => syncMsg("Invite link copied. Send it only to the person you're sharing with."))
+  .then(() => syncMsg("Invite link copied. Send it only to the people you're sharing with."))
   .catch(() => { $("#inviteLink").select(); syncMsg("Select the link and copy it."); });
 $("#syncOff").onclick = () => {
   SYNC.on = false; saveSync(); clearInterval(syncTimer);
