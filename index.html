@@ -487,7 +487,7 @@
     <summary>Add a block</summary>
     <div class="row">
       <div class="f"><label>Whose</label>
-        <select id="fPerson"><option value="a">You</option><option value="b">Partner</option></select></div>
+        <select id="fPerson"><option value="a">You</option><option value="b">Person 2</option></select></div>
       <div class="f"><label>Where</label><select id="fKind"></select></div>
       <div class="f" id="fShiftWrap"><label>Shift</label><select id="fShift"></select></div>
       <div class="f" id="fStationWrap"><label>Station</label><select id="fStation"></select></div>
@@ -508,7 +508,7 @@
 
   <div class="legend">
     <span><i class="sw a"></i><b id="lgA">You</b></span>
-    <span><i class="sw b"></i><b id="lgB">Partner</b></span>
+    <span><i class="sw b"></i><b id="lgB">Person 2</b></span>
     <span><i class="sw f"></i>Both free</span>
     <span class="dragtip" title="Dashed edges mean the block repeats every week">Click to edit · drag to move or resize</span>
     <span class="wkacts">
@@ -605,13 +605,13 @@
     <h2>Move it between devices</h2>
     <div class="row">
       <button class="btn ghost" id="expBtn">Download backup (.json)</button>
-      <button class="btn ghost" id="impFileBtn">Merge in a backup / partner's calendar</button>
+      <button class="btn ghost" id="impFileBtn">Merge in a backup / someone's calendar</button>
       <button class="btn ghost" id="linkBtn">Copy share link</button>
       <input type="file" id="fileIn" accept=".json" hidden>
     </div>
     <p class="hint" style="margin-top:10px">
       Everything lives in this browser only. Nothing is uploaded anywhere, including the photos.
-      The share link carries the whole calendar inside the URL, so you can text it to your partner.
+      The share link carries the whole calendar inside the URL, so you can text it to the other person.
     </p>
     <div id="expMsg" class="msg"></div>
   </div>
@@ -636,7 +636,7 @@
 <!-- ============ SETTINGS ============ -->
 <section class="view" id="v-settings">
   <div class="card">
-    <h2>Share with your partner <span id="syncState" class="tag">off</span></h2>
+    <h2>Share with someone <span id="syncState" class="tag">off</span></h2>
     <p class="hint" style="margin:0 0 12px">
       Start a shared calendar here, then send the invite link to the one person you're sharing with.
       Changes show up on both of your devices within a few seconds. Your calendar is stored online under a
@@ -649,7 +649,7 @@
       <button class="btn ghost" id="joinBtn">Join</button>
     </div>
     <div class="row" id="inviteBox" style="display:none">
-      <div class="f" style="flex:1;min-width:240px"><label>Invite link: send it to your partner</label>
+      <div class="f" style="flex:1;min-width:240px"><label>Invite link: send it to the person you're sharing with</label>
         <input id="inviteLink" readonly></div>
       <button class="btn" id="inviteCopy">Copy link</button>
       <button class="btn ghost" id="syncOff">Stop sharing on this device</button>
@@ -683,7 +683,7 @@
       <div class="f" style="flex:1;min-width:260px"><label>Calendar link</label>
         <input id="feedUrl" placeholder="https://... .ics  (or webcal://...)"></div>
       <div class="f"><label>Whose</label>
-        <select id="feedWho"><option value="a">You</option><option value="b">Partner</option></select></div>
+        <select id="feedWho"><option value="a">You</option><option value="b">Person 2</option></select></div>
       <div class="f"><label>Where</label><select id="feedKind"></select></div>
       <div class="f"><label>Label</label><input id="feedLabel" placeholder="Library" style="width:130px"></div>
       <button class="btn" id="feedAdd">Connect</button>
@@ -698,14 +698,14 @@
     <div class="row" style="margin-bottom:18px">
       <div class="f"><label><span class="dot a"></span> You</label>
         <input id="nameA" maxlength="24" placeholder="Your name"></div>
-      <div class="f"><label><span class="dot b"></span> Your partner</label>
+      <div class="f"><label><span class="dot b"></span> The other person</label>
         <input id="nameB" maxlength="24" placeholder="Their name"></div>
     </div>
     <h2>Waking hours: free time is only counted inside these</h2>
     <div class="row">
       <div class="f"><label><span class="dot a"></span> <b id="stA">You</b> up at</label><input id="wakeA" type="time" value="08:00"></div>
       <div class="f"><label>in bed by</label><input id="sleepA" type="time" value="23:00"></div>
-      <div class="f" style="margin-left:20px"><label><span class="dot b"></span> <b id="stB">Partner</b> up at</label><input id="wakeB" type="time" value="08:00"></div>
+      <div class="f" style="margin-left:20px"><label><span class="dot b"></span> <b id="stB">Person 2</b> up at</label><input id="wakeB" type="time" value="08:00"></div>
       <div class="f"><label>in bed by</label><input id="sleepB" type="time" value="23:00"></div>
     </div>
   </div>
@@ -726,7 +726,7 @@
     <h2>Danger zone</h2>
     <div class="row">
       <button class="btn danger" id="clrA">Clear all of your blocks</button>
-      <button class="btn danger" id="clrB">Clear all of your partner's blocks</button>
+      <button class="btn danger" id="clrB">Clear all of the other person's blocks</button>
       <button class="btn danger" id="clrAll">Clear everything</button>
     </div>
   </div>
@@ -957,7 +957,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const el = (t,c,h) => { const n = document.createElement(t); if(c) n.className = c; if(h != null) n.innerHTML = h; return n; };
 const pad = n => String(n).padStart(2,"0");
 const nameOf = w => (String(w === "a" ? S.nameA : S.nameB || "").slice(0,24).trim())
-                    || (w === "a" ? "You" : "Partner");
+                    || (w === "a" ? "You" : "Person 2");
 const escapeHTML = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================= dates ================= */
@@ -1073,7 +1073,7 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} 
 const SKEY = "schedsync-sync";          // kept out of S, so a merge can't overwrite it
 /* The shared database this copy of the app uses for "Start a shared calendar".
    Every room in it is sealed by a row policy: a request only ever sees the room
-   whose code it sends, so one couple can never read another's. The key is the
+   whose code it sends, so one shared calendar can never read another. The key is the
    public one that policy exists for. */
 const SHARED = {url:"https://agxhsrgpdssfgerflfsv.supabase.co", key:"sb_publishable_mizFkaBBXi3pGL64nkU6-g_YKkf5NeR"};
 const newRoomCode = () => [...crypto.getRandomValues(new Uint8Array(20))].map(b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
@@ -2460,7 +2460,7 @@ function cfgChange(i, kind){
     const own = raw.jobs[w].some(x => x.k === "rso");
     const used = new Set(raw.jobs.a.concat(raw.jobs.b).map(x => x.c));
     const c = [...PALETTE.keys()].find(n => !used.has(n)) ?? raw.jobs[w].length % PALETTE.length;
-    // RSO keeps one key, so a couple who both work there share its stations and colour
+    // RSO keeps one key, so two people who both work there share its stations and colour
     const k2 = t[0] === "rso" && !own && jobsOf(w === "a" ? "b" : "a").some(x => x.k === "rso") ? "rso" : newJobKey(t[0] === "rso" ? "rso" : "");
     raw.jobs[w].push({k: k2, c: (jobOf(k2) || {}).c ?? c, ...t[2]});
     if(t[2].group === "coop") raw.unpaid[w][k2] = true;
@@ -3121,7 +3121,7 @@ $("#fileIn").onchange = ev => {
 $("#linkBtn").onclick = () => {
   const url = location.origin + location.pathname + "#" + btoa(unescape(encodeURIComponent(JSON.stringify(S))));
   navigator.clipboard.writeText(url)
-    .then(() => note("Link copied (" + url.length + " characters). Text it to your partner."))
+    .then(() => note("Link copied (" + url.length + " characters). Text it to the other person."))
     .catch(() => prompt("Copy this link:", url));
 };
 function note(t, err){ const m = $("#expMsg"); m.className = "msg" + (err ? " err" : ""); m.textContent = t; }
@@ -3304,11 +3304,11 @@ $("#syncSave").onclick = async () => {
   if(!url || !key || !room) return syncMsg("All three fields are needed.", "err");
   if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)) return syncMsg("That doesn't look like a Supabase project URL.", "err");
   dirty = true;
-  await connect({url, key, room}, "Connected. Put the same three values into your partner's copy and you're sharing a calendar.");
+  await connect({url, key, room}, "Connected. Put the same three values into the other person's copy and you're sharing a calendar.");
 };
 $("#syncStart").onclick = async () => {
   dirty = true;                       // this device's calendar becomes the shared one
-  await connect({...SHARED, room:newRoomCode()}, "Shared calendar started. Copy the invite link and send it to your partner.");
+  await connect({...SHARED, room:newRoomCode()}, "Shared calendar started. Copy the invite link and send it to the person you're sharing with.");
 };
 /* Joining starts this device fresh. Whatever it held before is set aside as a
    backup, never copied into someone else's calendar. */
@@ -3325,7 +3325,7 @@ async function joinRoom(room){
 }
 $("#joinBtn").onclick = () => joinRoom(roomFrom($("#joinCode").value));
 $("#inviteCopy").onclick = () => navigator.clipboard.writeText($("#inviteLink").value)
-  .then(() => syncMsg("Invite link copied. Send it only to your partner."))
+  .then(() => syncMsg("Invite link copied. Send it only to the person you're sharing with."))
   .catch(() => { $("#inviteLink").select(); syncMsg("Select the link and copy it."); });
 $("#syncOff").onclick = () => {
   SYNC.on = false; saveSync(); clearInterval(syncTimer);

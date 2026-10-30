@@ -1,6 +1,6 @@
 # Schedule Sync
 
-A shared calendar for two people's shifts that finds the hours you're both free.
+A shared calendar for two people (roommates, friends, anyone) that finds the hours you're both free.
 It runs in the browser as a single HTML file, with no build step and no account.
 
 **Open it:** https://abhimanyududeja.github.io/schedule-sync/
@@ -18,15 +18,15 @@ It runs in the browser as a single HTML file, with no build step and no account.
 - **Photo / Paste**: read a schedule from a screenshot or pasted text.
 - **Job calendars**: subscribe to a shift scheduler's iCal link and shifts appear by themselves.
 
-## Sharing with your partner
+## Sharing
 
 Open **Settings → Start a shared calendar**, copy the invite link and send it to the one
 person you share with. Changes show up on both devices within a few seconds.
 
 Each shared calendar is stored under a long random room code. The database only ever
 returns the room whose code a request carries, so one calendar can't read another.
-Anyone who has your invite link can see and edit your calendar, so share it with your
-partner only.
+Anyone who has your invite link can see and edit your calendar, so send it only to the
+person you're sharing with.
 
 ## Using your own Supabase project
 
