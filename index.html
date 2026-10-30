@@ -1,0 +1,3373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule Sync: when are we both free?</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Schedule">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2a2f3f;
+    --text:#e7e9ee; --dim:#9aa3b5; --faint:#7f8899;
+    --a:#6d8cff; --a-soft:#6d8cff33; --a-line:#6d8cff88; --a-text:#cdd8ff; --a-wash:#6d8cff0e;
+    --b:#ff77b0; --b-soft:#ff77b033; --b-line:#ff77b088; --b-text:#ffd2e6;
+    --free:#3ddc97; --free-soft:#3ddc9722; --free-line:#3ddc9766;
+    --warn:#ffb45c; --err:#ff9aa8;
+    --danger-bg:#3a1f27; --danger-fg:#ff9aa8; --danger-line:#5a2b36;
+    --hover:#ffffff0d; --hover2:#ffffff14;
+    --shadow:0 6px 18px #0009; --shadow-lg:0 20px 60px #000;
+    --r:10px;
+  }
+  /* Light theme. The person colours are darkened so their text stays legible
+     on a pale fill, and the washes are made opaque enough to read as tints. */
+  [data-theme="light"]{
+    color-scheme:light;
+    --bg:#f4f6fa; --panel:#ffffff; --panel2:#eef1f7; --line:#dde2ec;
+    --text:#161a23; --dim:#525b6b; --faint:#666f80;
+    --a:#3b5bdb; --a-soft:#3b5bdb1f; --a-line:#3b5bdb7a; --a-text:#22348f; --a-wash:#3b5bdb0a;
+    --b:#d6336c; --b-soft:#d6336c1c; --b-line:#d6336c73; --b-text:#8f1d45;
+    --free:#0a7350; --free-soft:#0ca6781f; --free-line:#0ca67877;
+    --warn:#c2570a; --err:#c92a4a;
+    --danger-bg:#fdeaee; --danger-fg:#b02a41; --danger-line:#f2c2cc;
+    --hover:#0000000a; --hover2:#00000012;
+    --shadow:0 4px 14px #0f172a1f; --shadow-lg:0 18px 50px #0f172a2e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer}
+
+  /* One sticky unit, so the tabs never scroll out of reach whatever wraps. */
+  .topbar{position:sticky;top:0;z-index:60;background:var(--panel);box-shadow:var(--shadow);
+    border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;gap:14px;padding:8px 20px;min-height:46px}
+  .brand{font-weight:650;letter-spacing:-.2px;font-size:14px;white-space:nowrap}
+  .wknav{display:flex;align-items:center;gap:8px;min-width:0}
+  .wklabel{line-height:1.2;min-width:0;white-space:nowrap}
+  .wklabel span{font-weight:600;font-size:13px}
+  .wklabel small{display:block;color:var(--faint);font-size:11px}
+  .barend{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .nav{background:var(--panel2);border:1px solid var(--line);border-radius:8px;width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px;flex:none}
+  .nav:hover{background:var(--hover2);color:var(--text)}
+  .btn.sm{padding:6px 10px;font-size:12px}
+  .wkchip{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--a-soft);
+    color:var(--a-text);border:1px solid var(--a-line);white-space:nowrap}
+  .wkchip.ok{background:var(--free-soft);color:var(--free);border-color:var(--free-line)}
+  .wkchip.bad{background:#ffb45c1a;color:var(--warn);border-color:#ffb45c66}
+  .wkacts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  nav.tabs{display:flex;gap:4px;padding:12px 20px 0;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+  nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;
+    color:var(--dim);font-weight:520;border-radius:6px 6px 0 0}
+  nav.tabs button:hover{color:var(--text);background:var(--hover)}
+  nav.tabs button.on{color:var(--text);border-bottom-color:var(--a)}
+
+  main{padding:20px;max-width:1500px;margin:0 auto}
+  .view{display:none} .view.on{display:block}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);font-weight:600}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .f{display:flex;flex-direction:column;gap:5px}
+  .f label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .f input,.f select{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+  .f input:focus,.f select:focus,.who input:focus,textarea:focus{outline:none;border-color:var(--a)}
+  .btn{background:var(--a);color:#0b0e16;border:0;border-radius:8px;padding:8px 14px;font-weight:600}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:disabled{opacity:.5;cursor:default;filter:none}
+  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.ghost:hover{background:var(--hover2)}
+  .btn.danger{background:var(--danger-bg);color:var(--danger-fg);border:1px solid var(--danger-line)}
+  .btn.go{background:var(--free);color:#08110d}
+
+  .days{display:flex;gap:4px}
+  .days button{background:var(--panel2);border:1px solid var(--line);border-radius:7px;width:38px;
+    padding:7px 0;color:var(--dim);font-size:12px;font-weight:600}
+  .days button.on{background:var(--a);border-color:var(--a);color:#0b0e16}
+  .dayhint{display:block;font-size:11px;color:var(--faint);margin-top:5px}
+
+  .gridwrap{overflow-x:auto;padding-bottom:6px}
+  .grid{display:grid;grid-template-columns:56px repeat(7,minmax(120px,1fr));gap:6px;min-width:940px}
+  .colhead{text-align:center;font-size:12px;font-weight:600;color:var(--dim);padding:6px 0;border-radius:6px}
+  .colhead.today{background:var(--a-soft);color:var(--a-text)}
+  .colhead b{font-weight:600}
+  .colhead small{display:block;font-weight:400;color:var(--free);font-size:11px}
+  .gutter{position:relative}
+  .gutter div{position:absolute;right:6px;font-size:11px;color:var(--faint);transform:translateY(-50%);white-space:nowrap}
+  .col{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .col.today{border-color:var(--a-line)}
+  .hr{position:absolute;left:0;right:0;height:1px;background:var(--line);opacity:.7}
+  .hr.half{opacity:.3}
+  .band{position:absolute;left:0;right:0;background:var(--free-soft);
+    border-top:1px solid var(--free-line);border-bottom:1px solid var(--free-line)}
+  .band b{position:absolute;left:5px;top:2px;font-size:10px;color:var(--free);font-weight:600}
+  .ev{position:absolute;border-radius:6px;padding:3px 5px;overflow:hidden;cursor:pointer;font-size:11px;line-height:1.25;border:1px solid}
+  .ev:hover{filter:brightness(1.25)}
+  .ev{cursor:grab;touch-action:none;user-select:none}
+  .ev.dragging{cursor:grabbing;filter:brightness(1.4);z-index:20;box-shadow:0 6px 18px #000a}
+  .grip{position:absolute;left:0;right:0;height:8px;cursor:ns-resize;opacity:0}
+  .grip.top{top:-1px} .grip.bot{bottom:-1px}
+  .ev:hover .grip{opacity:1;background:linear-gradient(currentColor,transparent);height:6px}
+  .ev:hover .grip.bot{background:linear-gradient(transparent,currentColor)}
+  .ev.a{background:var(--a-soft);border-color:var(--a-line);color:var(--a-text)}
+  .ev.b{background:var(--b-soft);border-color:var(--b-line);color:var(--b-text)}
+  .ev.rep{border-style:dashed}
+  .ev.ghost{background:var(--free-soft);border:1px dashed var(--free);color:var(--free);
+    pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .ev strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev em{font-style:normal;color:var(--faint);font-size:10px;display:block}
+  .ev em.pl{font-weight:600;letter-spacing:.03em;text-transform:uppercase;font-size:9px;margin-top:1px}
+
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;min-width:150px}
+  .stat b{display:block;font-size:26px;font-weight:650;letter-spacing:-.5px}
+  .stat span{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .daylist{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .dayblk{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+  .dayblk h3{margin:0 0 10px;font-size:13px;display:flex;justify-content:space-between;align-items:baseline}
+  .dayblk h3 span{font-size:11px;color:var(--free);font-weight:600}
+  .slot{display:flex;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:7px;
+    background:var(--free-soft);border:1px solid var(--free-line);margin-bottom:6px;font-size:12.5px}
+  .slot.busy{background:#ffb45c1a;border-color:#ffb45c55}
+  .slot span{color:var(--dim);font-variant-numeric:tabular-nums}
+  .none{color:var(--faint);font-size:12px;font-style:italic}
+  .feedrow{display:flex;align-items:flex-start;gap:10px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;margin-bottom:8px}
+  .feedrow .fmeta{flex:1;min-width:0;line-height:1.45}
+  .feedrow b{display:flex;align-items:center;gap:7px;font-size:13.5px}
+  .feedrow span{display:block;font-size:12px;color:var(--dim)}
+  .feedrow small{display:block;font-size:11px;color:var(--faint);word-break:break-all}
+  .feedrow em{display:block;font-style:normal;font-size:11.5px;color:var(--free);margin-top:2px}
+  .feedrow em.bad{color:var(--warn)}
+  .hours{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+  .hcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 18px 14px;
+    position:relative;overflow:hidden}
+  .hcard::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--who,var(--line))}
+  .hcard.a{--who:var(--a)} .hcard.b{--who:var(--b)}
+  .hcard h3{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line);font-size:15px;
+    display:flex;align-items:center;gap:9px;font-weight:650;letter-spacing:-.1px}
+  .hcard h3 .hsub{margin-left:auto;font-size:12px;font-weight:500;color:var(--faint);letter-spacing:0}
+  .hcard .tot{font-size:34px;font-weight:700;letter-spacing:-1px;margin-bottom:16px;line-height:1.05;
+    font-variant-numeric:tabular-nums}
+  .hcard .tot small{display:block;font-size:12px;font-weight:450;color:var(--dim);letter-spacing:0;margin-top:6px;line-height:1.4}
+  .hcard .tot .totlbl{display:block;font-size:10.5px;font-weight:650;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .hcard .tot.over{color:var(--warn)}
+  .hcard .tot.over .totlbl,.hcard .tot.over small{color:var(--warn)}
+  .split div.tot-cell em{display:block;font-style:normal;font-size:11px;color:var(--dim);margin-top:2px}
+  .split{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));
+    gap:8px;margin:0 0 16px}
+  .split div{background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;line-height:1.35;min-width:0}
+  .split div.tot-cell{grid-column:1/-1;grid-row:2;border-color:var(--a-line);background:var(--a-soft)}
+  /* one line always: a label that wrapped made that card's row taller than the
+     other person's, and the two cards sit side by side */
+  .split span{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+  .split b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+  .hcard .tot small.miss{color:var(--warn)}
+  .checks{margin:0 -10px 8px}
+  .checks h4{margin:0 10px 6px;font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .check{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;
+    border-radius:9px;border:1px solid transparent}
+  .check + .check{border-top-color:var(--line);border-radius:0}
+  .check.next{background:var(--a-wash);border-color:var(--a-line);border-radius:9px}
+  .check.next + .check{border-top-color:transparent}
+  .check .cdate,.check .camt{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .check .camt{align-items:flex-end;flex:none}
+  .check .cdate b{font-size:13.5px;font-weight:600}
+  .check .camt b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+  .check .meta{display:flex;align-items:center;flex-wrap:wrap;gap:5px 7px;font-size:12px;color:var(--faint);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .check .camt .meta{justify-content:flex-end}
+  .check.paid .cdate b,.check.paid .camt b{color:var(--dim)}
+  /* who is paying: bold and in that job's colour, so two employers read apart at a glance */
+  .job{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text);
+    padding:2px 9px 2px 7px;border-radius:20px;letter-spacing:.01em;
+    background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
+  .job::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+  .state{font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;
+    border-radius:20px;border:1px solid var(--line);color:var(--faint)}
+  .state.due{color:var(--free);border-color:var(--free-line);background:var(--free-soft)}
+  .state.now{color:var(--a-text);border-color:var(--a-line);background:var(--a-soft)}
+  #payMonths{margin-top:14px}
+  details.rates h5{margin:14px 0 2px;font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .jrow .jtop{display:flex;align-items:center;gap:8px;grid-column:1/-1}
+  .jrow .jdot{width:10px;height:10px;border-radius:50%;flex:none}
+  .jrow input.jname,.jrow select,details.rates .sub select,details.rates .sub input[type=date],.addrow select{
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:5px 8px;font-size:12.5px}
+  .jrow input.jname{flex:1;min-width:0;font-weight:600}
+  .jrow input.jname:focus,.jrow select:focus,details.rates .sub select:focus,details.rates .sub input[type=date]:focus{outline:none;border-color:var(--a)}
+  details.rates .sub.opts{flex-wrap:wrap;gap:6px 14px}
+  details.rates .sub{gap:6px 14px}
+  details.rates .sub .grp{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  details.rates .sub input.n{width:58px}
+  details.rates .sub{flex-wrap:wrap;margin-top:6px}
+  .addrow{margin:10px 0 4px}
+  .x{background:none;border:0;color:var(--faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px}
+  .x:hover{color:var(--err);background:var(--hover)}
+  details.adv{margin-top:12px}
+  details.adv summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--dim)}
+  .brow{display:flex;align-items:center;gap:10px;justify-content:space-between;max-width:360px;padding:7px 10px;
+    margin-bottom:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .hcard .tot .cap.open i{background:var(--free)}
+  .alert{font-size:12.5px;line-height:1.4;color:var(--warn);background:#ffb45c14;border:1px solid #ffb45c55;
+    border-radius:9px;padding:8px 11px;margin:-6px 0 14px}
+  .alert + .alert{margin-top:-8px}
+  .alert.ok{color:var(--free);background:var(--free-soft);border-color:var(--free-line)}
+  .impact{font-size:12.5px;line-height:1.5;color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:8px 11px;margin:12px 0 0}
+  .eImpact .impact{margin:0 0 14px}
+  .impact.bad{color:var(--warn);background:#ffb45c14;border-color:#ffb45c55}
+  .slip{background:none;border:1px dashed var(--line);border-radius:20px;padding:1px 8px;font-size:11px;
+    font-weight:600;color:var(--faint);cursor:pointer}
+  .slip:hover{color:var(--text);border-color:var(--dim)}
+  .slip.on{border-style:solid;border-color:var(--free-line);color:var(--free)}
+  .slipform{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:4px 10px 12px;font-size:12px;color:var(--dim)}
+  .slipform label{display:flex;align-items:center;gap:5px}
+  .slipform input{width:88px;padding:5px 8px;text-align:right;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;color:var(--text);font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
+  .slipform input::-webkit-outer-spin-button,.slipform input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .slipform input:focus{outline:none;border-color:var(--a)}
+  .refund{display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px 14px;border-radius:9px;
+    background:var(--free-soft);border:1px solid var(--free-line)}
+  .refund div{flex:none}
+  .refund span{display:block;font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--free)}
+  .refund b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+  .refund em{display:block;font-style:normal;font-size:11.5px;color:var(--dim)}
+  .refund p{margin:0;font-size:12px;color:var(--dim);line-height:1.45}
+  .mfoot{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:11.5px;color:var(--faint)}
+  .mseg{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .mseg button{background:none;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--dim);cursor:pointer}
+  .mseg button:hover{color:var(--text)}
+  .mseg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px #0003}
+  .mtable{font-variant-numeric:tabular-nums}
+  .mtable th,.mtable td{text-align:right;padding:10px 8px;white-space:nowrap}
+  .mtable th:first-child,.mtable td:first-child{text-align:left;padding-left:0}
+  .mtable th:last-child,.mtable td:last-child{padding-right:0}
+  .mtable td{font-size:13.5px;color:var(--dim)}
+  .mtable td b{color:var(--text);font-weight:650}
+  .mtable td:last-child b{font-size:14.5px;font-weight:700}
+  .mtable td span{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}
+  .mtable tr:hover td{background:none}
+  .mtable .ms{display:none}
+  .mtable tr.cur td:first-child b{color:var(--a)}
+  .mtable tr.ahead td{opacity:.75}
+  .mtable tfoot td{border-bottom:0;border-top:2px solid var(--line)}
+  details.rates{border-top:1px solid var(--line);padding-top:4px}
+  details.rates summary{cursor:pointer;padding:10px 0 4px;font-size:12.5px;font-weight:600;color:var(--dim);list-style:none}
+  details.rates summary:hover{color:var(--text)}
+  details.rates summary::-webkit-details-marker{display:none}
+  details.rates summary::after{content:" ▾";color:var(--faint)}
+  details.rates[open] summary::after{content:" ▴"}
+  .hcard .tot .cap{height:6px;border-radius:4px;background:var(--panel2);border:1px solid var(--line);
+    margin-top:12px;overflow:hidden}
+  .hcard .tot .cap i{display:block;height:100%;background:var(--who);border-radius:4px}
+  .hcard .tot.over .cap i{background:var(--warn)}
+  .hcard .tot .est{font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-left:6px}
+  .hcard .tot.paytot .src{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;
+    font-weight:450;color:var(--dim);letter-spacing:0}
+  .prow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 10px;
+    padding:10px 0;border-top:1px solid var(--line)}
+  .prow b{font-size:13px;font-weight:600}
+  .prow .amt{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+  .prow .amt.zero{color:var(--faint);font-weight:500}
+  .prow .sub{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
+    font-variant-numeric:tabular-nums}
+  .prow .sub input{width:76px;padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);
+    -moz-appearance:textfield;appearance:textfield}
+  .prow .sub input::-webkit-outer-spin-button,.prow .sub input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .prow .sub input::placeholder{color:var(--faint)}
+  .prow .sub .pre{font-style:normal;width:22px;text-align:right;flex:none}
+  .prow .sub input:focus{outline:none;border-color:var(--a)}
+  .prow.idle b{color:var(--dim)}
+  .prow .unp{display:flex;align-items:center;gap:6px;cursor:pointer}
+  .prow .unp input{width:auto;margin:0;accent-color:var(--a)}
+  .split div.over{border-color:var(--warn);background:#ffb45c1f}
+  .split div.over span,.split div.over b{color:var(--warn)}
+  .split div.over em{display:block;font-style:normal;font-size:10px;color:var(--warn);margin-top:2px}
+  .hrow{margin-bottom:14px}
+  .hrow .lbl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px;margin-bottom:6px}
+  .hrow .lbl b{font-size:13.5px;font-weight:650}
+  .hrow .lbl span{color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .hbar{height:8px;border-radius:5px;background:var(--panel2);overflow:hidden}
+  .hbar i{display:block;height:100%;border-radius:5px}
+
+  /* one-day picker, phone only */
+  .daystrip{display:none;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;scrollbar-width:none}
+  .daystrip::-webkit-scrollbar{display:none}
+  .daystrip button{flex:1;min-width:60px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:8px 5px;color:var(--dim);line-height:1.3}
+  .daystrip button b{display:block;font-size:13px;color:var(--text);font-weight:600}
+  .daystrip button small{font-size:10px;color:var(--free)}
+  .daystrip button.on{border-color:var(--a);background:var(--a-soft)}
+  .daystrip button.today b{color:var(--a)}
+
+  .addcard summary{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
+    font-weight:600;cursor:pointer;list-style:none;margin-bottom:12px}
+  .addcard summary::-webkit-details-marker{display:none}
+  .addcard summary::after{content:" ▾";color:var(--faint)}
+  .addcard:not([open]) summary{margin-bottom:0}
+  .wkacts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn .sm{display:none}
+
+  @media (max-width:768px){
+    main{padding:12px}
+    .bar{padding:7px 12px;gap:10px}
+    .brand{display:none}
+    nav.tabs{padding:6px 12px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+    nav.tabs::-webkit-scrollbar{display:none}
+    nav.tabs button{white-space:nowrap;padding:10px 11px;font-size:13px}
+    .card{padding:12px}
+    .f{flex:1;min-width:calc(50% - 5px)}
+    .f input,.f select{width:100%;font-size:16px;padding:10px}   /* 16px stops iOS zooming on focus */
+    .days{width:100%} .days button{width:auto;flex:1;padding:11px 0}
+    .f.fdays{min-width:100%}          /* seven day chips need the whole row to stay tappable */
+    .prow .sub input{font-size:16px;width:84px}   /* 16px or iOS zooms in on focus */
+    .prow .sub .unp input{width:auto}
+    .mtable th,.mtable td{padding:9px 3px;font-size:12px}
+    .mtable th{font-size:10px;letter-spacing:.03em}
+    .mtable td:first-child{white-space:normal}
+    .mtable .ml{display:none} .mtable .ms{display:block}
+    .mtable td:last-child b{font-size:13px}
+    .hcard.months{padding:16px 12px 10px}
+    .refund{flex-direction:column;align-items:flex-start;gap:6px}
+    .mfoot{flex-direction:column;align-items:flex-start}
+    .slipform input{font-size:16px}
+    .hcard.months h3{flex-wrap:wrap}
+    .btn{padding:12px 14px}
+    .legend{font-size:11.5px;gap:8px 12px}
+    .legend .dragtip{display:none}          /* no dragging on a touch screen */
+    .btn .lg{display:none} .btn .sm{display:inline}
+    .legend .wkacts{margin-left:0;gap:6px;width:100%}
+    .wklabel{min-width:0;max-width:150px;white-space:nowrap;overflow:hidden;
+      text-overflow:ellipsis;font-size:13px}
+    .wklabel small{display:none}          /* the day chips already carry the dates */
+    .wkchip{font-size:10.5px;padding:3px 7px}
+    #wkCount{display:none}                /* the block count is noise on a small screen */
+    .legend span{white-space:nowrap}
+    .legend .sw{margin-right:4px}
+    .nav{width:34px;height:34px}
+    .gridwrap{overflow-x:visible}
+    .grid{min-width:0;grid-template-columns:44px 1fr}
+    .daystrip{display:flex}
+    .stat{flex:1;min-width:calc(50% - 6px);padding:11px 12px}
+    .stat b{font-size:21px}
+    .daylist{grid-template-columns:1fr}
+    .modal{padding:0;align-items:flex-end}
+    .sheet{border-radius:14px 14px 0 0;padding:16px;max-height:92vh;overflow:auto}
+    .rvtable{overflow-x:auto}
+    .shot img{max-height:110px;max-width:150px}
+  }
+  .note{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:11px 14px;margin-bottom:16px;font-size:12.5px;color:var(--dim)}
+  .note.warn{border-color:#ffb45c66;background:#ffb45c12;color:var(--warn)}
+  .note b{color:var(--text)}
+  .note.warn b{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+    padding:6px 8px;border-bottom:1px solid var(--line)}
+  td{padding:6px 8px;border-bottom:1px solid var(--line)}
+  tr:hover td{background:var(--hover)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none;vertical-align:0}
+  .dot.a{background:var(--a)} .dot.b{background:var(--b)}
+  .tag{font-size:10.5px;padding:2px 7px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+  .tag.rep{border-color:var(--a-line);color:var(--a-text)}
+  .x{background:none;border:0;color:var(--faint);padding:2px 6px;border-radius:5px}
+  .x:hover{background:var(--danger-bg);color:var(--danger-fg)}
+
+  textarea{width:100%;min-height:170px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;resize:vertical}
+  .hint{color:var(--faint);font-size:12px;line-height:1.6}
+  .hint code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--dim)}
+  .msg{margin-top:10px;font-size:12.5px;color:var(--free)}
+  .msg.err{color:var(--err)} .msg.warn{color:var(--warn)}
+  .legend{display:flex;gap:8px 14px;flex-wrap:wrap;font-size:12px;color:var(--dim);
+    margin-bottom:12px;align-items:center}
+  .legend .dragtip{color:var(--faint)}
+  .legend .wkacts{margin-left:auto;display:flex;gap:8px;margin-bottom:0}
+  .sw{width:22px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px;border:1px solid}
+  .sw.a{background:var(--a-soft);border-color:var(--a-line)}
+  .sw.b{background:var(--b-soft);border-color:var(--b-line)}
+  .sw.f{background:var(--free-soft);border-color:var(--free-line)}
+
+  /* photo */
+  .drop{border:2px dashed var(--line);border-radius:var(--r);padding:34px 20px;text-align:center;color:var(--dim);
+    background:var(--panel2);transition:.15s}
+  .drop.over{border-color:var(--a);background:var(--a-soft);color:var(--text)}
+  .drop b{display:block;font-size:15px;color:var(--text);margin-bottom:4px}
+  .shots{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .shot{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel2)}
+  .shot img{display:block;max-height:150px;max-width:230px}
+  .shot .x{position:absolute;top:2px;right:2px;background:#000a;border-radius:5px}
+  .bar{height:5px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:12px;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;background:var(--a);width:0;transition:width .2s}
+
+  /* review */
+  .review{border:1px solid var(--a-line);background:var(--a-wash);border-radius:var(--r);padding:16px;margin-top:16px}
+  .review h3{margin:0 0 4px;font-size:15px}
+  .review p.sub{margin:0 0 14px;color:var(--dim);font-size:12.5px}
+  .askwho{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .askwho button{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:12px;text-align:left;line-height:1.3}
+  .askwho button b{display:block;font-size:14px}
+  .askwho button small{color:var(--faint);font-size:11.5px}
+  .askwho button.on.pa{border-color:var(--a);background:var(--a-soft)}
+  .askwho button.on.pb{border-color:var(--b);background:var(--b-soft)}
+  .rvtable{max-height:330px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+
+  .modal{position:fixed;inset:0;background:#000000cc;display:flex;align-items:center;
+    justify-content:center;z-index:200;padding:20px}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;
+    max-width:580px;width:100%;box-shadow:var(--shadow-lg)}
+  .sheet h3{margin:0 0 6px;font-size:17px}
+  .sheet p.sub{margin:0 0 16px;color:var(--dim);font-size:13px;line-height:1.5}
+  .sum{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .sum div{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
+  .sum div+div{border-top:1px solid var(--line)}
+  .sum b{font-weight:600}
+  .swap{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--dim);
+    margin-bottom:16px;cursor:pointer;line-height:1.5}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12.5px}
+  .cell:focus{outline:none;border-color:var(--a)}
+  .cell.wide{width:100%;min-width:170px}
+  .cell.unmatched{border-color:var(--warn)}
+  .cellwrap{display:flex;align-items:center;gap:5px;white-space:nowrap;color:var(--faint)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+<div class="bar">
+  <div class="brand">Schedule&nbsp;Sync</div>
+  <div class="wknav">
+    <button class="nav" id="prevW" title="Previous week">‹</button>
+    <button class="nav" id="nextW" title="Next week">›</button>
+    <div class="wklabel"><span id="wkTitle">This week</span><small id="wkDates"></small></div>
+    <button class="btn ghost sm" id="todayW">Today</button>
+  </div>
+  <div class="barend">
+    <span class="wkchip" id="wkCount"></span>
+    <span class="wkchip ok" id="syncChip" style="display:none">synced</span>
+    <button class="nav" id="themeBtn" title="Theme">◐</button>
+  </div>
+</div>
+
+<nav class="tabs">
+  <button data-v="week" class="on">Week</button>
+  <button data-v="free">Free Together</button>
+  <button data-v="hours">Hours</button>
+  <button data-v="pay">Pay</button>
+  <button data-v="photo">Photo</button>
+  <button data-v="import">Paste</button>
+  <button data-v="events">All Blocks</button>
+  <button data-v="settings">Settings</button>
+</nav>
+</div>
+
+<main>
+
+<!-- ============ WEEK ============ -->
+<section class="view on" id="v-week">
+  <details class="card addcard" id="addCard" open>
+    <summary>Add a block</summary>
+    <div class="row">
+      <div class="f"><label>Whose</label>
+        <select id="fPerson"><option value="a">You</option><option value="b">Partner</option></select></div>
+      <div class="f"><label>Where</label><select id="fKind"></select></div>
+      <div class="f" id="fShiftWrap"><label>Shift</label><select id="fShift"></select></div>
+      <div class="f" id="fStationWrap"><label>Station</label><select id="fStation"></select></div>
+      <div class="f" id="fTitleWrap"><label>What <span style="text-transform:none">(optional)</span></label>
+        <input id="fTitle" placeholder="e.g. front desk" style="width:170px"></div>
+      <div class="f"><label>Repeats</label>
+        <select id="fRepeat">
+          <option value="once">Just this week</option>
+          <option value="every">Every week</option></select></div>
+      <div class="f fdays"><label>Days</label><div class="days" id="fDays"></div>
+        <small class="dayhint" id="fDayHint"></small></div>
+      <div class="f"><label>Start</label><input id="fStart" type="time" value="09:00"></div>
+      <div class="f"><label>End</label><input id="fEnd" type="time" value="10:30"></div>
+      <button class="btn" id="addBtn">Add</button>
+    </div>
+    <div id="fImpact"></div>
+  </details>
+
+  <div class="legend">
+    <span><i class="sw a"></i><b id="lgA">You</b></span>
+    <span><i class="sw b"></i><b id="lgB">Partner</b></span>
+    <span><i class="sw f"></i>Both free</span>
+    <span class="dragtip" title="Dashed edges mean the block repeats every week">Click to edit · drag to move or resize</span>
+    <span class="wkacts">
+      <button class="btn ghost sm" id="copyPrev" title="Copy last week's one-off shifts into this week">⧉ Copy last week</button>
+      <button class="btn ghost sm" id="clrWeek" title="Delete this week's one-off shifts">Clear week</button>
+    </span>
+  </div>
+  <div class="daystrip" id="daystrip"></div>
+  <div class="card gridwrap"><div class="grid" id="grid"></div></div>
+</section>
+
+<!-- ============ FREE ============ -->
+<section class="view" id="v-free">
+  <div class="row" style="margin-bottom:16px">
+    <div class="f"><label>Minimum useful gap</label>
+      <select id="minGap">
+        <option value="30">30 min</option><option value="45">45 min</option>
+        <option value="60" selected>1 hour</option><option value="90">1.5 hours</option>
+        <option value="120">2 hours</option><option value="180">3 hours</option></select></div>
+    <div class="f"><label>Show</label>
+      <select id="freeMode">
+        <option value="free">Free together</option>
+        <option value="busy">Busy at the same time</option></select></div>
+    <button class="btn ghost" id="icsBtn">Download .ics for this week</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div id="why"></div>
+  <div class="daylist" id="daylist"></div>
+</section>
+
+<!-- ============ HOURS ============ -->
+<section class="view" id="v-hours">
+  <div class="note" id="hoursNote"></div>
+  <div class="hours" id="hours"></div>
+</section>
+
+<!-- ============ PAY ============ -->
+<section class="view" id="v-pay">
+  <div class="note" id="payNote"></div>
+  <div class="hours" id="pay"></div><div id="payMonths"></div>
+</section>
+
+<!-- ============ PHOTO ============ -->
+<section class="view" id="v-photo">
+  <div class="card">
+    <h2>Upload a photo or screenshot of a schedule</h2>
+    <div class="drop" id="drop">
+      <b>Drop an image here</b>
+      click to choose a file, or just press ⌘V to paste a screenshot
+      <div style="margin-top:6px;font-size:12px;color:var(--faint)">
+        Works best on a screenshot of a shift list or class list. Photos of a printed grid work too, but check what it read before you add it.
+      </div>
+      <input type="file" id="photoIn" accept="image/*" multiple hidden>
+    </div>
+    <div class="shots" id="shots"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="ocrBtn" disabled>Read the schedule</button>
+      <button class="btn ghost" id="ocrClear" disabled>Clear images</button>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px">
+        <input type="checkbox" id="ocrInvert"> force invert (light text on dark)</label>
+    </div>
+    <div class="bar" id="ocrBar" style="display:none"><i></i></div>
+    <div id="ocrMsg" class="msg"></div>
+  </div>
+
+  <div class="card" id="ocrTextCard" style="display:none">
+    <h2>What it read: fix anything wrong, then confirm</h2>
+    <textarea id="ocrText"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="ocrParse">Check these lines</button>
+      <span class="hint" style="align-self:center">One block per line, e.g. <code>Mon 2-5pm Library desk</code></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IMPORT ============ -->
+<section class="view" id="v-import">
+  <div class="card">
+    <h2>Paste a schedule as text</h2>
+    <textarea id="impText" placeholder="Mon Wed Fri  9:00-10:15  CS 3500&#10;TuTh 2-3:15pm  Writing Center job&#10;Sat 10am-4pm  Retail shift"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="impBtn">Check these lines</button>
+      <button class="btn ghost" id="impDemo">Load an example</button>
+    </div>
+    <p class="hint" style="margin-top:14px">
+      Days understood: <code>Mon</code> <code>Monday</code> <code>M W F</code> <code>MWF</code> <code>TuTh</code> <code>TR</code>
+      <code>Mon/Wed</code> <code>weekdays</code> <code>weekend</code> <code>daily</code>, or a date like <code>8/14</code> or <code>Aug 14</code>.<br>
+      Times understood: <code>9:00-10:15</code> <code>2-3:15pm</code> <code>14:00 to 15:30</code> <code>9am–5pm</code>.
+      Bare times like <code>2-3:15</code> are read as PM.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Move it between devices</h2>
+    <div class="row">
+      <button class="btn ghost" id="expBtn">Download backup (.json)</button>
+      <button class="btn ghost" id="impFileBtn">Merge in a backup / partner's calendar</button>
+      <button class="btn ghost" id="linkBtn">Copy share link</button>
+      <input type="file" id="fileIn" accept=".json" hidden>
+    </div>
+    <p class="hint" style="margin-top:10px">
+      Everything lives in this browser only. Nothing is uploaded anywhere, including the photos.
+      The share link carries the whole calendar inside the URL, so you can text it to your partner.
+    </p>
+    <div id="expMsg" class="msg"></div>
+  </div>
+</section>
+
+<!-- ============ EVENTS ============ -->
+<section class="view" id="v-events">
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <div class="f"><label>Show</label>
+        <select id="scope">
+          <option value="week">This week only</option>
+          <option value="every">Repeating every week</option>
+          <option value="all">Everything, all weeks</option></select></div>
+    </div>
+    <table id="evTable"><thead><tr>
+      <th>Who</th><th>What</th><th>Type</th><th>When</th><th>Day</th><th>Time</th><th>Length</th><th></th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section class="view" id="v-settings">
+  <div class="card">
+    <h2>Share with your partner <span id="syncState" class="tag">off</span></h2>
+    <p class="hint" style="margin:0 0 12px">
+      Start a shared calendar here, then send the invite link to the one person you're sharing with.
+      Changes show up on both of your devices within a few seconds. Your calendar is stored online under a
+      long random room code: anyone with the link can see and change it, so send it only to them.
+    </p>
+    <div class="row" id="syncSimple">
+      <button class="btn" id="syncStart">Start a shared calendar</button>
+      <div class="f" style="flex:1;min-width:220px"><label>Or join one</label>
+        <input id="joinCode" autocomplete="off" placeholder="paste the invite link"></div>
+      <button class="btn ghost" id="joinBtn">Join</button>
+    </div>
+    <div class="row" id="inviteBox" style="display:none">
+      <div class="f" style="flex:1;min-width:240px"><label>Invite link: send it to your partner</label>
+        <input id="inviteLink" readonly></div>
+      <button class="btn" id="inviteCopy">Copy link</button>
+      <button class="btn ghost" id="syncOff">Stop sharing on this device</button>
+    </div>
+    <details class="adv">
+      <summary>Use your own Supabase project instead</summary>
+      <p class="hint" style="margin:8px 0 12px">
+        Paste the two values from your project (<b>Settings → API</b>) and a room code you both use.
+        The table needs to be called <b>schedules</b>, with <b>id</b> (text), <b>data</b> (jsonb) and <b>updated_at</b> (timestamptz).
+      </p>
+      <div class="row">
+        <div class="f" style="flex:1;min-width:260px"><label>Project URL</label>
+          <input id="syncUrl" autocomplete="off" placeholder="https://xxxxxxxx.supabase.co"></div>
+        <div class="f" style="flex:1;min-width:260px"><label>Anon / public key</label>
+          <input id="syncKey" type="password" autocomplete="new-password" placeholder="eyJhbGci... or sb_publishable_..."></div>
+        <div class="f"><label>Room code</label><input id="syncRoom" autocomplete="off" placeholder="a long random code"></div>
+        <button class="btn" id="syncSave">Connect</button>
+      </div>
+    </details>
+    <div id="syncMsg" class="msg"></div>
+  </div>
+  <div class="card">
+    <h2>Job calendars <span id="feedState" class="wkchip"></span></h2>
+    <p class="hint" style="margin:-4px 0 12px">
+      If your work scheduler can publish your shifts as a calendar link (WhenToWork calls it
+      <b>Export to Personal Calendar</b>, most others say <b>iCal</b>, <b>Subscribe</b> or <b>webcal</b>),
+      paste that link here. Shifts then appear by themselves and update when the rota changes.
+      These blocks are owned by the feed: a shift dropped at work disappears here too, so do not hand-edit them.
+    </p>
+    <div class="row" style="margin-bottom:12px">
+      <div class="f" style="flex:1;min-width:260px"><label>Calendar link</label>
+        <input id="feedUrl" placeholder="https://... .ics  (or webcal://...)"></div>
+      <div class="f"><label>Whose</label>
+        <select id="feedWho"><option value="a">You</option><option value="b">Partner</option></select></div>
+      <div class="f"><label>Where</label><select id="feedKind"></select></div>
+      <div class="f"><label>Label</label><input id="feedLabel" placeholder="Library" style="width:130px"></div>
+      <button class="btn" id="feedAdd">Connect</button>
+      <button class="btn ghost" id="feedRefresh">Refresh now</button>
+    </div>
+    <div id="feedList"></div>
+    <div id="feedMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Names</h2>
+    <div class="row" style="margin-bottom:18px">
+      <div class="f"><label><span class="dot a"></span> You</label>
+        <input id="nameA" maxlength="24" placeholder="Your name"></div>
+      <div class="f"><label><span class="dot b"></span> Your partner</label>
+        <input id="nameB" maxlength="24" placeholder="Their name"></div>
+    </div>
+    <h2>Waking hours: free time is only counted inside these</h2>
+    <div class="row">
+      <div class="f"><label><span class="dot a"></span> <b id="stA">You</b> up at</label><input id="wakeA" type="time" value="08:00"></div>
+      <div class="f"><label>in bed by</label><input id="sleepA" type="time" value="23:00"></div>
+      <div class="f" style="margin-left:20px"><label><span class="dot b"></span> <b id="stB">Partner</b> up at</label><input id="wakeB" type="time" value="08:00"></div>
+      <div class="f"><label>in bed by</label><input id="sleepB" type="time" value="23:00"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Break weeks: no 20h on-campus limit</h2>
+    <p class="hint" style="margin:-4px 0 12px">
+      Student visas usually allow full-time work during official university breaks. Add those dates and
+      any week whose weekdays all fall inside one shows no 20h limit. Check your school's calendar first.
+    </p>
+    <div id="breakList"></div>
+    <div class="row">
+      <div class="f"><label>From</label><input id="brFrom" type="date"></div>
+      <div class="f"><label>To</label><input id="brTo" type="date"></div>
+      <button class="btn ghost" id="brAdd">Add break</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Danger zone</h2>
+    <div class="row">
+      <button class="btn danger" id="clrA">Clear all of your blocks</button>
+      <button class="btn danger" id="clrB">Clear all of your partner's blocks</button>
+      <button class="btn danger" id="clrAll">Clear everything</button>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+"use strict";
+/* ================= state ================= */
+const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
+/* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
+const WEEKDAYS = [1,2,3,4,5];
+/* Pixels per minute: recomputed each render to fit the day, and shared so
+   dragging converts mouse movement to time at the same scale. */
+let PX = 0.9;
+
+/* Where a shift is. Each person keeps their own list of jobs in the room's
+   data (Pay -> Jobs and pay), so nothing about anyone is built into the app.
+   "Other" is always there for classes, interviews and the rest. */
+const PALETTE = ["#7cc4ff","#3ddc97","#c39bff","#ffb45c","#f87171","#fb923c","#22d3ee","#f472b6"];
+/* the pale ones vanish on white, so light mode gets a deeper set */
+const PALETTE_LIGHT = ["#1d4ed8","#047857","#6d28d9","#a35a06","#b91c1c","#9a3412","#0e7490","#be185d"];
+const OTHER_COLOR = {dark:"#8b93a7", light:"#475569"};
+const GROUPS = [["campus","On campus"], ["off","Off campus"], ["coop","Co-op or internship"], ["other","Other"]];
+/* Starting points for a new job. The Northeastern RSO one knows its stations,
+   fixed shifts, the unpaid half hour on 8h+ runs and the overnight extra. */
+const JOB_TEMPLATES = [
+  ["rso",    "Northeastern RSO", {label:"RSO", group:"campus", brk:true, night:true, st:true}],
+  ["campus", "On-campus job",    {label:"Campus job", group:"campus"}],
+  ["off",    "Off-campus job",   {label:"Job", group:"off"}],
+  ["coop",   "Co-op or internship", {label:"Co-op", group:"coop"}],
+  ["other",  "Something else",   {label:"Job", group:"other"}]
+];
+const jobsOf = w => (S.pay && S.pay.jobs[w]) || [];
+const placesOf = w => jobsOf(w).filter(j => !j.hide).map(j => [j.k, j.label]).concat([["other","Other"]]);
+const jobOf = k => jobsOf("a").find(j => j.k === k) || jobsOf("b").find(j => j.k === k);
+const jobHas = (k, f) => !!(jobOf(k) || {})[f];
+/* Campus jobs and co-ops are counted separately: they sit under different
+   rules and it is the split you actually want to read. */
+const RSO_STATIONS = [
+  ["Burstein Hall","SS"],
+  ["Davenport A","DS"],
+  ["Davenport B","DS"],
+  ["East Village","DS"],
+  ["East Village Stairwell","SS"],
+  ["Hastings","SS"],
+  ["INV Northeast","DS"],
+  ["INV Northwest","DS"],
+  ["Kennedy Hall","SS"],
+  ["Kerr Hall","SS"],
+  ["Light Hall","SS"],
+  ["Loftman Hall","SS"],
+  ["Melvin Hall","SS"],
+  ["Rubenstein Hall","SS"],
+  ["Smith Hall","DS"],
+  ["Speare East","SS"],
+  ["Speare Lobby","SS"],
+  ["Speare West","SS"],
+  ["Stetson East","DS"],
+  ["Stetson West Front","DS"],
+  ["Stetson West Rear","DS"],
+  ["West Village A North","DS"],
+  ["West Village A South","DS"],
+  ["West Village B","DS"],
+  ["West Village C","SS"],
+  ["West Village E","SS"],
+  ["West Village F","SS"],
+  ["West Village G","SS"],
+  ["West Village H","DS"],
+  ["White Hall","DS"],
+  ["Willis Hall","DS"],
+  ["60 Belvidere St.","SS"],
+  ["110 St Stephen","SS"],
+  ["116 St Stephen","SS"],
+  ["319 Huntington","SS"],
+  ["337 Huntington","SS"],
+  ["407 Huntington","SS"],
+  ["780 Columbus","SS"],
+  ["Coventry","SS"],
+  ["Hamper Station Duty","SS"],
+  ["Husky Card Services","SS"],
+  ["Oakland Dispatch","SS"],
+  ["Proctor Shadow","SS"],
+];
+const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
+/* RSO runs fixed blocks, so picking the shift fills the times. */
+const RSO_SHIFTS = [["A",480,720], ["B",720,960], ["C1",960,1200], ["C2",1200,1440], ["M",0,480]];
+const shiftLabel = ([n,a,b]) => `${n} · ${fmt(a)}–${fmt(b)}`;
+const shiftFor = (start,end) => (RSO_SHIFTS.find(([,a,b]) => a === start && b === end) || [""])[0];
+function fillShifts(sel, start, end){
+  sel.innerHTML = "";
+  const custom = el("option"); custom.value = ""; custom.textContent = "Custom times"; sel.appendChild(custom);
+  RSO_SHIFTS.forEach(sh => { const o = el("option"); o.value = sh[0]; o.textContent = shiftLabel(sh);
+    if(sh[0] === shiftFor(start,end)) o.selected = true; sel.appendChild(o); });
+}
+const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
+/* Only RSO posts have stations; every other workplace uses the free-text name. */
+const hasStations = kind => jobHas(kind, "st");
+/* Work out which station a scanned line is talking about. Shift portals write
+   things like "407 Huntington/ A @ RSO Boston" or "Kerr Hall/ Midnight", so
+   look for any station name inside the text and take the longest match, which
+   keeps "West Village A North" from losing to "West Village A". */
+const normStation = x => String(x||"").toLowerCase()
+  .replace(/@?\s*rso\s+boston/g," ")          // the org name is on every line; it is not a station
+  .replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+function matchStation(text){
+  const t = normStation(text);
+  if(!t) return "";
+  let best = "", bestLen = 0;
+  for(const [name] of RSO_STATIONS){
+    const k = normStation(name);
+    if(!k) continue;
+    if((" "+t+" ").includes(" "+k+" ") && k.length > bestLen){ best = name; bestLen = k.length; }
+  }
+  return best;
+}
+function fillStations(sel, current){
+  sel.innerHTML = "";
+  const none = el("option"); none.value = ""; none.textContent = "— pick a station —"; sel.appendChild(none);
+  RSO_STATIONS.forEach(([n,t]) => { const o = el("option"); o.value = n; o.textContent = `${n} (${t})`;
+    if(n === current) o.selected = true; sel.appendChild(o); });
+}
+const placeGroup = k => (jobOf(k) || {}).group || "other";
+const CAMPUS_CAP = 20 * 60;        // minutes of on-campus work allowed in a week
+/* Weeks with no 20h limit (F-1 students may work full time over official
+   breaks), kept as [first day, last day] pairs under Settings. A week whose
+   weekdays all fall inside one is unlimited. */
+function breakWeek(iso){
+  const sun = parseISO(iso), B = (S.pay && S.pay.breaks) || [];
+  return B.length > 0 && [1,2,3,4,5].every(i => { const d = isoOf(addDays(sun, i)); return B.some(([a, b]) => d >= a && d <= b); });
+}
+/* A job that asks for at least so many hours every week, set per person. */
+const minOf = w => (S.pay && S.pay.min[w]) || null;
+const minWeek = (w, iso) => { const m = minOf(w); return !!m && (!m.from || iso >= m.from) && (!m.to || iso <= m.to); };
+/* An overnight shift that runs into the morning, with a class (or an interview)
+   starting soon after it ends that same day. */
+const CLASSY = /class|lecture|\blab\b|seminar|exam|midterm|final|interview|course|\b[A-Z]{2,5} ?\d{4}\b/i;
+function tiredMornings(person, iso, list = weekEvents(iso)){
+  const mine = list.filter(e => e.person === person), out = [];
+  mine.filter(e => e.kind !== "other" && placeGroup(e.kind) !== "coop" && e.start < 4 * 60 && e.end >= 5 * 60 && e.end <= 11 * 60)
+    .forEach(n => mine.filter(c => c.day === n.day && c.kind === "other" && CLASSY.test(c.title)
+                                   && c.start >= n.end - 30 && c.start < n.end + 3 * 60)
+      .forEach(c => out.push({n, c})));
+  return out;
+}
+const tiredText = ({n, c}) => `${DAYS[n.day]}: your overnight ends ${fmt(n.end)}, ${c.title} starts ${fmt(c.start)}`;
+const placeName = k => k === "other" || !k ? "Other" : (jobOf(k) || {}).label || "Job";
+const placeColor = k => {
+  const light = document.documentElement.dataset.theme === "light", j = jobOf(k);
+  return j ? (light ? PALETTE_LIGHT : PALETTE)[j.c % PALETTE.length] : OTHER_COLOR[light ? "light" : "dark"];
+};
+function fillPlaces(sel, person){
+  const keep = sel.value;
+  sel.innerHTML = "";
+  placesOf(person).forEach(([v,t]) => {
+    const o = el("option"); o.value = v; o.textContent = t;
+    if(v === keep) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"",
+  wakeA:"08:00", sleepA:"23:00", wakeB:"08:00", sleepB:"23:00", events:[], tomb:[], feeds:[],
+  pay:normPay(null), pm:0});
+/* Everything about work and pay, per person: the jobs, what each pays an hour
+   (plus any overnight extra and tips, or unpaid), how each employer pays and
+   what it holds back, a weekly minimum if a job asks for one, and break weeks.
+   It syncs with the room. Anything malformed comes back as the empty shape. */
+function normPay(p){
+  const n = v => { const x = +v; return x > 0 && x < 1000 ? Math.round(x * 100) / 100 : 0; };
+  const out = {rate:{a:{}, b:{}}, night:{a:{}, b:{}}, tip:{a:{}, b:{}}, unpaid:{a:{}, b:{}}, tax:{a:0, b:0}, actual:{a:{}, b:{}},
+               jobs:{a:[], b:[]}, payrolls:{a:[], b:[]}, min:{a:null, b:null}, breaks:[]};
+  const iso = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
+  const str = (v, n = 40) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+  const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
+  const pct = v => { const x = +v; return x > 0 && x < 100 ? Math.round(x * 100) / 100 : 0; };
+  const cents = v => { const x = +v; return x >= 0 && x < 100000 ? Math.round(x * 100) / 100 : NaN; };
+  ["a","b"].forEach(w => {
+    ["rate","night","tip"].forEach(f =>
+      Object.entries((p && p[f] && p[f][w]) || {}).forEach(([k,v]) => { if(n(v)) out[f][w][k] = n(v); }));
+    Object.entries((p && p.unpaid && p.unpaid[w]) || {}).forEach(([k,v]) => { if(v === true) out.unpaid[w][k] = true; });
+    const t = +((p && p.tax && p.tax[w]) || 0);
+    out.tax[w] = t > 0 && t < 100 ? Math.round(t * 10) / 10 : 0;
+    // what a payslip actually said, keyed "payroll:payday"
+    Object.entries((p && p.actual && p.actual[w]) || {}).forEach(([k, v]) => {
+      const g = cents(v && v.g), nn = cents(v && v.n);
+      if(/^[a-z0-9_-]+:\d{4}-\d{2}-\d{2}$/.test(k) && g > 0 && nn > 0 && nn <= g) out.actual[w][k] = {g, n: nn};
+    });
+    const seen = new Set();
+    (((p && p.jobs && p.jobs[w]) || [])).forEach(j => {
+      const k = key(j && j.k);
+      if(!k || k === "other" || seen.has(k)) return;
+      seen.add(k);
+      out.jobs[w].push({k, label: str(j.label, 30) || "Job", group: GROUPS.some(([g]) => g === j.group) ? j.group : "other",
+        c: Math.abs(Math.floor(+j.c || 0)) % PALETTE.length,
+        ...["brk","night","tips","st","hide"].reduce((o, f) => (j[f] === true && (o[f] = true), o), {})});
+    });
+    const ids = new Set();
+    (((p && p.payrolls && p.payrolls[w]) || [])).forEach(r => {
+      const id = key(r && r.id);
+      if(!id || ids.has(id)) return;
+      ids.add(id);
+      const cycle = ["2w","1w","day"].includes(r.cycle) ? r.cycle : "2w";
+      out.payrolls[w].push({id, label: str(r.label, 30) || "Paycheck", cycle,
+        kinds: [...new Set(((Array.isArray(r.kinds) && r.kinds) || []).map(key).filter(Boolean))],
+        pay: iso(r.pay), lag: Math.max(0, Math.min(30, Math.floor(+r.lag || 0))),
+        fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
+        ...(r.cash === true ? {cash: true} : {})});
+    });
+    const m = p && p.min && p.min[w];
+    if(m && key(m.k) && +m.h > 0) out.min[w] = {k: key(m.k), h: Math.min(40, Math.round(+m.h * 4) / 4), from: iso(m.from), to: iso(m.to)};
+  });
+  ((p && Array.isArray(p.breaks) && p.breaks) || []).forEach(b => {
+    if(Array.isArray(b) && iso(b[0]) && iso(b[1]) && b[0] <= b[1]) out.breaks.push([b[0], b[1]]);
+  });
+  return out;
+}
+const newDeviceId = () => Math.random().toString(36).slice(2,8);
+let S = blank(), uid = 1, VIEW = "";
+/* Ids carry the device that made them, so two laptops never collide. */
+const newId = () => S.did + "-" + (uid++).toString(36) + Date.now().toString(36).slice(-3);
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const el = (t,c,h) => { const n = document.createElement(t); if(c) n.className = c; if(h != null) n.innerHTML = h; return n; };
+const pad = n => String(n).padStart(2,"0");
+const nameOf = w => (String(w === "a" ? S.nameA : S.nameB || "").slice(0,24).trim())
+                    || (w === "a" ? "You" : "Partner");
+const escapeHTML = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ================= dates ================= */
+const isoOf   = d => d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+const parseISO= s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+function weekStartOf(d){ const x = new Date(d); x.setHours(0,0,0,0); return addDays(x, -x.getDay()); }
+const thisWeekStart = () => isoOf(weekStartOf(new Date()));
+function weekOffset(iso){ return Math.round((parseISO(iso) - parseISO(thisWeekStart())) / 604800000); }
+function weekTitle(iso){
+  const n = weekOffset(iso);
+  return n === 0 ? "This week" : n === 1 ? "Next week" : n === -1 ? "Last week"
+       : n > 0 ? `In ${n} weeks` : `${-n} weeks ago`;
+}
+function weekDates(iso){
+  const m = parseISO(iso), s = addDays(m,6), o = {month:"short", day:"numeric"};
+  return m.toLocaleDateString(undefined,o) + " – " + s.toLocaleDateString(undefined,o) + ", " + s.getFullYear();
+}
+
+/* ================= storage ================= */
+let PENDING = null;      // an incoming calendar waiting for the merge/replace choice
+let JOIN = "";            // a room code that arrived in an invite link
+function load(){
+  if(location.hash.startsWith("#join=")){
+    JOIN = roomFrom(location.hash);
+    history.replaceState(null,"",location.pathname);
+  } else if(location.hash.length > 3){
+    try{
+      const d = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(1)))));
+      if(d && Array.isArray(d.events)) PENDING = {data:d, from:"the shared link"};
+    }catch(e){}
+    history.replaceState(null,"",location.pathname);
+  }
+  try{
+    const raw = localStorage.getItem(KEY) || localStorage.getItem(OLDKEY) || localStorage.getItem(OLDKEY1);
+    if(raw) S = migrate(Object.assign(blank(), JSON.parse(raw)));
+  }catch(e){}
+  finishLoad();
+}
+/* Weeks used to start Monday (day 0 = Mon, week = that Monday). Sunday-first
+   renumbers the days and can move a block into the neighbouring week, so
+   rebuild each one from its real date rather than shifting the index. */
+function migrate(d){
+  migrateWeekStart(d);
+  migrateSyncIds(d);
+  return d;
+}
+/* v4: ids become globally unique strings and deletions leave tombstones, so two
+   laptops can merge without resurrecting blocks the other one removed. */
+function migrateSyncIds(d){
+  if(d.v >= 4) return d;
+  if(!d.did) d.did = newDeviceId();
+  const now = Date.now();
+  (d.events || []).forEach(e => {
+    if(typeof e.id !== "string") e.id = d.did + "-" + Number(e.id || 0).toString(36);
+    if(!e.m) e.m = now;
+  });
+  if(!Array.isArray(d.tomb)) d.tomb = [];
+  if(!Array.isArray(d.feeds)) d.feeds = [];
+  if(!d.sm) d.sm = now;
+  d.v = 4;
+  return d;
+}
+function migrateWeekStart(d){
+  if(d.v >= 3) return d;
+  (d.events || []).forEach(e => {
+    if(e.week){
+      const date = addDays(parseISO(e.week), e.day);   // e.week was that week's Monday
+      e.week = isoOf(weekStartOf(date));
+      e.day  = date.getDay();
+    }else{
+      e.day = (e.day + 1) % 7;                          // Mon=0..Sun=6  ->  Sun=0..Sat=6
+    }
+  });
+  d.v = 3;
+  return d;
+}
+/* A week key must be the Sunday that starts the week. Anything else, left over
+   from when weeks began on Monday, points at a week the app never looks up, so
+   the blocks silently vanish. Snap them back onto the week they belong to. */
+function repairWeeks(d){
+  let fixed = 0;
+  (d.events || []).forEach(e => {
+    if(!e.week) return;
+    const w = parseISO(e.week);
+    if(isNaN(w) ){ e.week = null; fixed++; return; }
+    if(w.getDay() !== 0){
+      e.week = isoOf(weekStartOf(w));
+      e.m = Date.now();              // so the repair wins over the stale copy in a merge
+      fixed++;
+    }
+  });
+  return fixed;
+}
+function finishLoad(){
+  if(!S.did) S.did = newDeviceId();
+  if(!Array.isArray(S.tomb)) S.tomb = [];
+  if(!Array.isArray(S.feeds)) S.feeds = [];
+  S.pay = normPay(S.pay); S.pm = S.pm || 0;
+  S.events.forEach(e => { if(e.week === undefined) e.week = null; if(!e.m) e.m = Date.now(); });
+  compactTomb(S);
+  const fixed = repairWeeks(S);
+  if(fixed) setTimeout(() => {
+    const m = $("#expMsg");
+    if(m){ m.className = "msg"; m.textContent =
+      `Recovered ${fixed} block${fixed===1?"":"s"} that were stranded on an old week and weren't showing.`; }
+  }, 0);
+  VIEW = thisWeekStart();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+/* =================== two-laptop sync =================== */
+const SKEY = "schedsync-sync";          // kept out of S, so a merge can't overwrite it
+/* The shared database this copy of the app uses for "Start a shared calendar".
+   Every room in it is sealed by a row policy: a request only ever sees the room
+   whose code it sends, so one couple can never read another's. The key is the
+   public one that policy exists for. */
+const SHARED = {url:"https://agxhsrgpdssfgerflfsv.supabase.co", key:"sb_publishable_mizFkaBBXi3pGL64nkU6-g_YKkf5NeR"};
+const newRoomCode = () => [...crypto.getRandomValues(new Uint8Array(20))].map(b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+const inviteLink = room => location.origin + location.pathname + "#join=" + room;
+const roomFrom = text => { const m = String(text || "").trim().match(/(?:#join=)?([a-z0-9-]{12,64})\s*$/i); return m ? m[1] : ""; };
+let SYNC = {url:"", key:"", room:"", on:false};
+let syncTimer = null, pushTimer = null, syncBusy = false, lastSync = 0;
+
+try{ SYNC = Object.assign(SYNC, JSON.parse(localStorage.getItem(SKEY) || "{}")); }catch(e){}
+const saveSync = () => { try{ localStorage.setItem(SKEY, JSON.stringify(SYNC)); }catch(e){} };
+
+/* Union the two calendars, newest edit wins per block, and anything either side
+   deleted stays deleted. Order of arrival does not matter. */
+function mergeStates(local, remote){
+  const tomb = new Map();
+  [...(local.tomb||[]), ...(remote.tomb||[])].forEach(t => {
+    if(!tomb.has(t.k) || tomb.get(t.k) < t.t) tomb.set(t.k, t.t);
+  });
+  const byId = new Map();
+  [...(local.events||[]), ...(remote.events||[])].forEach(e => {
+    const prev = byId.get(e.id);
+    if(!prev || (e.m||0) > (prev.m||0)) byId.set(e.id, e);
+  });
+  const events = [...byId.values()].filter(e => {
+    const t = tomb.get(e.id);
+    return !(t && t >= (e.m||0));            // deleted after its last edit
+  });
+  const feeds = new Map();
+  [...(local.feeds||[]), ...(remote.feeds||[])].forEach(f => {
+    const prev = feeds.get(f.id);
+    if(!prev || (f.m||0) > (prev.m||0)) feeds.set(f.id, f);
+  });
+  const newer = (remote.sm||0) > (local.sm||0) ? remote : local;
+  const payer = (remote.pm||0) > (local.pm||0) ? remote : local;
+  const pay = normPay(payer.pay);
+  /* An older copy of the app drops pay settings it doesn't know about but keeps
+     the same stamp. A real edit always moves the stamp, so at an equal stamp a
+     side that has the settings wins over one that lost them. */
+  if((remote.pm||0) === (local.pm||0)){
+    const other = normPay((payer === remote ? local : remote).pay);
+    ["a","b"].forEach(w => {
+      ["jobs","payrolls"].forEach(f => { if(!pay[f][w].length && other[f][w].length) pay[f][w] = other[f][w]; });
+      if(!pay.min[w] && other.min[w]) pay.min[w] = other.min[w];
+      if(!Object.keys(pay.actual[w]).length && Object.keys(other.actual[w]).length) pay.actual[w] = other.actual[w];
+    });
+    if(!pay.breaks.length && other.breaks.length) pay.breaks = other.breaks;
+  }
+  return Object.assign({}, local, {
+    pay, pm:payer.pm||0,
+    events, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
+    sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB,
+    wakeA:newer.wakeA, sleepA:newer.sleepA, wakeB:newer.wakeB, sleepB:newer.sleepB
+  });
+}
+
+/* ---- subscribing to a job calendar (WhenToWork, Teamwork, Google, anything
+   that publishes .ics). Shifts pulled from a feed are owned by the feed: they
+   are refreshed wholesale, so a shift dropped upstream disappears here too. ---- */
+/* The "Add to Google Calendar" button hands you a google.com wrapper with the real
+   feed buried in ?cid=. Unwrap it so either form can be pasted in. */
+function normalizeFeedUrl(raw){
+  let u = String(raw || "").trim();
+  const cid = u.match(/[?&]cid=([^&\s]+)/i);
+  if(cid) u = decodeURIComponent(cid[1]);
+  return u.replace(/^webcal:\/\//i, "https://").trim();
+}
+function unfoldICS(t){ return t.replace(/\r\n/g,"\n").replace(/\n[ \t]/g,""); }
+function icsText(v){
+  return v.replace(/\\n/gi,", ").replace(/\\,/g,",").replace(/\\;/g,";").replace(/\\\\/g,"\\").trim();
+}
+function icsDate(val){
+  const m = val.trim().match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
+  if(!m) return null;
+  const [,y,mo,d,h,mi,s,z] = m;
+  if(h === undefined) return new Date(+y, +mo-1, +d);
+  return z ? new Date(Date.UTC(+y, +mo-1, +d, +h, +mi, +s))
+           : new Date(+y, +mo-1, +d, +h, +mi, +s);
+}
+function parseICS(text){
+  const out = []; let cur = null;
+  for(const ln of unfoldICS(text).split("\n")){
+    const t = ln.trim();
+    if(t === "BEGIN:VEVENT"){ cur = {}; continue; }
+    if(t === "END:VEVENT"){ if(cur && cur.start && cur.end) out.push(cur); cur = null; continue; }
+    if(!cur) continue;
+    const i = t.indexOf(":"); if(i < 0) continue;
+    const name = t.slice(0, i).split(";")[0].toUpperCase(), val = t.slice(i+1);
+    if(name === "DTSTART") cur.start = icsDate(val);
+    else if(name === "DTEND") cur.end = icsDate(val);
+    else if(name === "SUMMARY") cur.summary = icsText(val);
+    else if(name === "LOCATION") cur.location = icsText(val);
+    else if(name === "UID") cur.uid = val.trim();
+    else if(name === "STATUS") cur.status = val.trim().toUpperCase();
+  }
+  return out;
+}
+const hash32 = s => { let h = 5381; for(let i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+
+/* Turn one feed event into day-sized blocks, splitting anything that runs past midnight. */
+function feedBlocks(feed, ev){
+  const out = [];
+  if(ev.status === "CANCELLED" || !ev.start || !ev.end || ev.end <= ev.start) return out;
+  const title = (ev.summary || feed.label || placeName(feed.kind)).slice(0, 60);
+  let cursor = new Date(ev.start);
+  for(let guard = 0; guard < 8 && cursor < ev.end; guard++){
+    const dayEnd = new Date(cursor); dayEnd.setHours(24,0,0,0);
+    const segEnd = ev.end < dayEnd ? ev.end : dayEnd;
+    const startMin = cursor.getHours()*60 + cursor.getMinutes();
+    let endMin = segEnd.getHours()*60 + segEnd.getMinutes();
+    if(segEnd.getTime() === dayEnd.getTime()) endMin = 1440;
+    if(endMin > startMin){
+      const week = isoOf(weekStartOf(cursor));
+      out.push({
+        id: "f" + feed.id + "_" + hash32((ev.uid || title) + "|" + week + "|" + startMin),
+        person: feed.person, day: cursor.getDay(), start: startMin, end: endMin,
+        title, kind: feed.kind, week, src: feed.id
+      });
+    }
+    cursor = dayEnd;
+  }
+  return out;
+}
+
+async function refreshFeed(feed){
+  const res = await fetch(feed.url, {cache:"no-store"});
+  if(!res.ok) throw new Error("the feed replied " + res.status);
+  const text = await res.text();
+  if(!/BEGIN:VCALENDAR/i.test(text)) throw new Error("that URL is not a calendar feed");
+
+  const lo = addDays(parseISO(thisWeekStart()), -21), hi = addDays(parseISO(thisWeekStart()), 84);
+  const want = new Map();
+  parseICS(text).forEach(ev => {
+    if(ev.start < lo || ev.start > hi) return;
+    feedBlocks(feed, ev).forEach(b => want.set(b.id, b));
+  });
+
+  const now = Date.now();
+  let added = 0, removed = 0, changed = 0;
+  const inWindow = e => !e.week || (parseISO(e.week) >= addDays(lo,-7) && parseISO(e.week) <= hi);
+  S.events.filter(e => e.src === feed.id && inWindow(e)).forEach(e => {
+    const w = want.get(e.id);
+    if(!w){ S.tomb.push({k:e.id, t:now}); removed++; return; }          // gone upstream
+    if(w.title !== e.title || w.start !== e.start || w.end !== e.end ||
+       w.day !== e.day || w.person !== e.person || w.kind !== e.kind){
+      Object.assign(e, w); e.m = now; changed++;
+    }
+    want.delete(e.id);
+  });
+  if(removed) S.events = S.events.filter(e => !S.tomb.some(t => t.k === e.id && t.t === now));
+  want.forEach(b => { b.m = now; S.events.push(b); added++; });
+
+  feed.last = now; feed.err = "";
+  feed.count = S.events.filter(e => e.src === feed.id).length;
+  return {added, removed, changed};
+}
+
+async function refreshFeeds(quiet){
+  if(!S.feeds || !S.feeds.length) return;
+  let touched = false;
+  for(const f of S.feeds){
+    if(f.server) continue;            // a scheduled job owns this one; the browser cannot read it
+    try{
+      const r = await refreshFeed(f);
+      if(r.added || r.removed || r.changed) touched = true;
+    }catch(err){
+      f.err = String(err.message || err);
+      if(/Failed to fetch|NetworkError|CORS/i.test(f.err))
+        f.err = "blocked by the site (it does not allow browsers to read the feed)";
+    }
+  }
+  renderAll();
+  if(touched) syncSoon();
+  if(!quiet) renderFeeds();
+}
+
+/* X-Room lets the database policy scope every request to this room alone, so a
+   leaked key cannot list or read anyone else's calendar. */
+const sHead = () => ({apikey:SYNC.key, Authorization:"Bearer " + SYNC.key,
+                      "X-Room":SYNC.room, "Content-Type":"application/json"});
+const sBase = () => SYNC.url.replace(/\/+$/,"") + "/rest/v1/schedules";
+
+/* Deletions are remembered so a stale device cannot resurrect them, but kept
+   for ever they outgrow the real data. Two months is far longer than either
+   laptop is ever offline. */
+const TOMB_TTL = 60 * 24 * 60 * 60 * 1000;
+function compactTomb(d){
+  if(!Array.isArray(d.tomb)) return 0;
+  const cut = Date.now() - TOMB_TTL, before = d.tomb.length;
+  d.tomb = d.tomb.filter(t => t.t >= cut);
+  return before - d.tomb.length;
+}
+/* Everything that actually travels between the two laptops. Used to decide
+   whether a push is worth making at all. */
+const syncSig = d => JSON.stringify([d.events, d.tomb, d.feeds, d.sm,
+  d.nameA, d.nameB, d.wakeA, d.sleepA, d.wakeB, d.sleepB, d.pay, d.pm]);
+
+/* A stamp check is ~60 bytes; the document is ~17 KB. Only pull the document
+   when the stamp says it changed. */
+async function syncStamp(){
+  const r = await fetch(`${sBase()}?id=eq.${encodeURIComponent(SYNC.room)}&select=updated_at`,
+                        {headers:sHead(), cache:"no-store"});
+  if(!r.ok) throw new Error("read failed (" + r.status + ")");
+  const rows = await r.json();
+  return rows.length ? rows[0].updated_at : null;
+}
+async function syncPull(){
+  const r = await fetch(`${sBase()}?id=eq.${encodeURIComponent(SYNC.room)}&select=data`, {headers:sHead()});
+  if(!r.ok) throw new Error("read failed (" + r.status + ")");
+  const rows = await r.json();
+  return rows.length ? rows[0].data : null;
+}
+async function syncPush(state){
+  const r = await fetch(sBase(), {method:"POST",
+    headers:Object.assign(sHead(), {Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify([{id:SYNC.room, data:state, updated_at:new Date().toISOString()}])});
+  if(!r.ok) throw new Error("write failed (" + r.status + ")");
+}
+let seenStamp = null, dirty = false;
+async function syncNow(quiet){
+  if(!SYNC.on || syncBusy) return;
+  if(!SYNC.url || !SYNC.key || !SYNC.room) return;
+  syncBusy = true;
+  try{
+    const stamp = await syncStamp();
+    if(stamp && stamp === seenStamp && !dirty){        // nothing changed either side
+      lastSync = Date.now();
+      syncStatus(`in sync · ${new Date(lastSync).toLocaleTimeString()}`);
+      return;
+    }
+    const remote = stamp ? await syncPull() : null;
+    const before = syncSig(S);
+    let theirs = null;
+    if(remote){
+      const inbound = migrateSyncIds(migrateWeekStart(remote));
+      repairWeeks(inbound);                   // the other device may still be sending stale week keys
+      compactTomb(inbound);
+      theirs = syncSig(inbound);
+      const merged = mergeStates(S, inbound);
+      merged.did = S.did;                     // keep our own device identity
+      S = merged;
+    }
+    repairWeeks(S);
+    compactTomb(S);
+    const after = syncSig(S);
+    if(dirty || theirs === null || after !== theirs){
+      await syncPush(S);
+      seenStamp = await syncStamp();          // our own write, so do not re-pull it
+      dirty = false;
+    }else{
+      seenStamp = stamp;
+    }
+    lastSync = Date.now();
+    if(before !== after){ save(); renderAll(); }
+    syncStatus(`in sync · ${new Date(lastSync).toLocaleTimeString()}`);
+  }catch(err){
+    syncStatus("offline: " + String(err.message || err), true);
+  }finally{ syncBusy = false; }
+}
+function syncSoon(){                          // push local edits quickly, but batched
+  dirty = true;
+  if(!SYNC.on) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => syncNow(true), 800);
+}
+function syncStart(){
+  clearInterval(syncTimer);
+  if(!SYNC.on) return syncStatus("off");
+  syncNow();
+  syncTimer = setInterval(() => syncNow(true), 5000);
+}
+function syncStatus(text, bad){
+  const n = $("#syncState"); if(!n) return;
+  n.textContent = text;
+  n.className = "tag" + (bad ? " bad" : SYNC.on ? " ok" : "");
+  const chip = $("#syncChip");
+  if(chip){
+    chip.style.display = SYNC.on ? "inline-flex" : "none";
+    chip.className = "wkchip" + (bad ? " bad" : " ok");
+    chip.textContent = bad ? "sync offline" : "synced";
+  }
+}
+
+/* ---- bringing in someone else's calendar ---- */
+const evKey = e => [e.person, e.day, e.start, e.end, e.week || "*",
+                    String(e.title||"").trim().toLowerCase()].join("|");
+
+function mergeIn(d, swap){
+  const have = new Set(S.events.map(evKey));
+  let added = 0, dupes = 0;
+  (d.events || []).forEach(src => {
+    const e = Object.assign({}, src);
+    if(swap) e.person = e.person === "a" ? "b" : "a";
+    if(have.has(evKey(e))){ dupes++; return; }
+    have.add(evKey(e));
+    e.id = newId();
+    S.events.push(e);
+    added++;
+  });
+  return {added, dupes};
+}
+
+/* Replacing used to be the only option, which quietly destroyed the other
+   person's calendar. Now it is a deliberate choice with the damage spelled out. */
+function askImport(d, from){
+  migrate(d);
+  const inA = (d.events||[]).filter(e => e.person === "a").length;
+  const inB = (d.events||[]).filter(e => e.person === "b").length;
+  const rep = (d.events||[]).filter(e => e.week === null).length;
+  const weeks = new Set((d.events||[]).filter(e => e.week).map(e => e.week));
+  const mineNow = S.events.length;
+
+  const wrap = el("div","modal");
+  wrap.innerHTML = `<div class="sheet">
+    <h3>A calendar is coming in from ${escapeHTML(from)}</h3>
+    <p class="sub">Merging keeps everything you already have and adds whatever is new.
+      Replacing throws your calendar away. There is no undo.</p>
+    <div class="sum">
+      <div><span>Their <b>${escapeHTML(d.nameA || "person A")}</b></span><b>${inA} block${inA===1?"":"s"}</b></div>
+      <div><span>Their <b>${escapeHTML(d.nameB || "person B")}</b></span><b>${inB} block${inB===1?"":"s"}</b></div>
+      <div><span>Repeating every week</span><b>${rep}</b></div>
+      <div><span>Specific weeks covered</span><b>${weeks.size}</b></div>
+      <div><span>You currently have</span><b>${mineNow} block${mineNow===1?"":"s"}</b></div>
+    </div>
+    <label class="swap"><input type="checkbox" class="mSwap">
+      <span>Swap the two people. Their first person becomes your second, and the other way round.
+      Tick this if you each set the app up from your own side, so their
+      <b>${inA} block${inA===1?"":"s"}</b> should land on <b>${escapeHTML(nameOf("b"))}</b>
+      rather than <b>${escapeHTML(nameOf("a"))}</b>.</span></label>
+    <div class="row">
+      <button class="btn go mMerge">Merge into mine</button>
+      <button class="btn ghost mReplace">Replace everything</button>
+      <button class="btn ghost mCancel">Cancel</button>
+    </div></div>`;
+  document.body.appendChild(wrap);
+
+  const done = msg => {
+    wrap.remove(); renderAll();
+    const m = $("#expMsg"); m.className = "msg"; m.textContent = msg;
+    document.querySelector('nav.tabs button[data-v="import"]').click();
+  };
+  wrap.querySelector(".mCancel").onclick = () => wrap.remove();
+  wrap.querySelector(".mMerge").onclick = () => {
+    const {added, dupes} = mergeIn(d, wrap.querySelector(".mSwap").checked);
+    done(`Merged in ${added} new block${added===1?"":"s"}` +
+         (dupes ? `, skipped ${dupes} you already had` : "") + `. Nothing of yours was removed.`);
+  };
+  wrap.querySelector(".mReplace").onclick = () => {
+    if(!confirm(`This deletes all ${mineNow} of your blocks and keeps only theirs.\n\nThere is no undo. Continue?`)) return;
+    S = Object.assign(blank(), d); uid = 1; finishLoad();
+    done(`Replaced everything with the incoming calendar (${S.events.length} blocks).`);
+  };
+}
+
+/* ================= time maths ================= */
+const toMin = hhmm => {
+  const [h,m] = String(hhmm || "").split(":").map(Number);
+  return Number.isFinite(h) ? h*60 + (Number.isFinite(m) ? m : 0) : NaN;
+};
+const toHHMM = m => { const c = Math.max(0, Math.min(m, 1439)); return pad(Math.floor(c/60)) + ":" + pad(c%60); };
+function fmt(m){
+  if(m >= 1440) return "midnight";
+  let h = Math.floor(m/60); const mm = m%60, ap = h >= 12 ? "pm" : "am"; h = h%12 || 12;
+  return mm ? `${h}:${pad(mm)}${ap}` : `${h}${ap}`;
+}
+function dur(m){ const h = Math.floor(m/60), mm = m%60;
+  return !h ? mm + "m" : mm ? `${h}h ${mm}m` : `${h}h`; }
+
+function merge(iv){
+  const s = iv.slice().sort((x,y) => x[0]-y[0]), out = [];
+  for(const [a,b] of s){ const last = out[out.length-1];
+    if(last && a <= last[1]) last[1] = Math.max(last[1], b); else out.push([a,b]); }
+  return out;
+}
+function subtract(base, cut){
+  let out = base.slice();
+  for(const [ca,cb] of merge(cut)){
+    const next = [];
+    for(const [a,b] of out){
+      if(cb <= a || ca >= b){ next.push([a,b]); continue; }
+      if(ca > a) next.push([a,ca]);
+      if(cb < b) next.push([cb,b]);
+    }
+    out = next;
+  }
+  return out;
+}
+function intersect(p, q){
+  const out = []; let i = 0, j = 0;
+  while(i < p.length && j < q.length){
+    const a = Math.max(p[i][0], q[j][0]), b = Math.min(p[i][1], q[j][1]);
+    if(b > a) out.push([a,b]);
+    p[i][1] < q[j][1] ? i++ : j++;
+  }
+  return out;
+}
+/* every block that applies to the week on screen: repeating ones + that week's one-offs */
+/* A repeating block can carry a start week, so a job that began partway
+   through the year does not appear in every week before it existed. */
+const weekEvents = (iso) => S.events.filter(e =>
+  e.week === null ? (!e.from || iso >= e.from) : e.week === iso);
+const busyOf = (who,d) => merge(weekEvents(VIEW).filter(e => e.person===who && e.day===d).map(e => [e.start,e.end]));
+/* A blank or inverted waking window would silently zero out the whole week,
+   so fall back to the full day and let badWake() surface the problem. */
+function awake(who){
+  const lo = toMin(who === "a" ? S.wakeA : S.wakeB), hi = toMin(who === "a" ? S.sleepA : S.sleepB);
+  return (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo) ? [[lo,hi]] : [[0,1440]];
+}
+function badWake(){
+  const out = [];
+  ["a","b"].forEach(w => {
+    const lo = toMin(w === "a" ? S.wakeA : S.wakeB), hi = toMin(w === "a" ? S.sleepA : S.sleepB);
+    if(!(Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)) out.push(nameOf(w));
+  });
+  return out;
+}
+const freeTogether = d => intersect(subtract(awake("a"), busyOf("a",d)), subtract(awake("b"), busyOf("b",d)));
+const busyTogether = d => intersect(busyOf("a",d), busyOf("b",d));
+
+/* Showing one day on a phone, fit the timeline to that day, otherwise a single
+   overnight shift somewhere in the week buries every other day under empty night. */
+function gridWindow(days){
+  let lo = Math.min(toMin(S.wakeA), toMin(S.wakeB)), hi = Math.max(toMin(S.sleepA), toMin(S.sleepB));
+  const scope = days ? weekEvents(VIEW).filter(e => days.includes(e.day)) : weekEvents(VIEW);
+  for(const e of scope){ lo = Math.min(lo, e.start); hi = Math.max(hi, e.end); }
+  return [Math.floor(lo/60)*60, Math.ceil(hi/60)*60];
+}
+
+/* ================= parsing ================= */
+const DAYWORDS = [
+  [/\bsundays?\b|\bsun\b/,0],[/\bmondays?\b|\bmon\b/,1],[/\btuesdays?\b|\btues\b|\btue\b/,2],
+  [/\bwednesdays?\b|\bweds\b|\bwed\b/,3],[/\bthursdays?\b|\bthurs\b|\bthur\b|\bthu\b/,4],
+  [/\bfridays?\b|\bfri\b/,5],[/\bsaturdays?\b|\bsat\b/,6]];
+const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+
+/* A date like 8/14 or "Aug 14" pins the block to a real day. Returns {day, week}. */
+function parseDate(text){
+  const t = text.toLowerCase();
+  let mo = null, dy = null;
+  let m = t.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+  if(m){ mo = +m[1]; dy = +m[2]; }
+  else{
+    m = t.match(new RegExp("\\b(" + MONTHS.join("|") + ")[a-z]*\\.?\\s+(\\d{1,2})\\b"));
+    if(m){ mo = MONTHS.indexOf(m[1]) + 1; dy = +m[2]; }
+  }
+  if(!mo || mo > 12 || !dy || dy > 31) return null;
+  const now = new Date();
+  let yr = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : now.getFullYear();
+  let d = new Date(yr, mo-1, dy);
+  if(!m[3] && d < addDays(now, -180)) d = new Date(yr+1, mo-1, dy);   // "Jan 5" in December means next year
+  if(d.getMonth() !== mo-1) return null;
+  return {day:d.getDay(), week:isoOf(weekStartOf(d))};
+}
+function parseDays(text){
+  const t = " " + text.toLowerCase() + " ";
+  if(/\b(daily|every ?day|all week)\b/.test(t)) return [0,1,2,3,4,5,6];
+  if(/\b(weekdays?|mon-?fri|m-?f)\b/.test(t)) return WEEKDAYS.slice();
+  if(/\bweekends?\b/.test(t)) return [0,6];
+  const found = new Set();
+  for(const [re,i] of DAYWORDS) if(re.test(t)) found.add(i);
+  if(found.size) return [...found].sort((a,b) => a-b);
+  const code = t.replace(/[\s,/&+.\-]/g,"");
+  if(code && /^[mtwrfsuh]+$/.test(code)){
+    const c = code.replace(/th/g,"R").replace(/tu/g,"T").replace(/su/g,"U").replace(/sa/g,"S");
+    const map = {m:1,M:1,t:2,T:2,w:3,W:3,r:4,R:4,f:5,F:5,s:6,S:6,u:0,U:0};
+    for(const ch of c) if(map[ch] !== undefined) found.add(map[ch]);
+  }
+  return [...found].sort((a,b) => a-b);
+}
+function clockReadings(raw){
+  const m = raw.trim().toLowerCase().replace(/\./g,"").match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?$/);
+  if(!m) return null;
+  const h = +m[1], mm = m[2] ? +m[2] : 0, ap = m[3] ? m[3][0] : null;
+  if(h > 23 || mm > 59) return null;
+  if(ap === "p") return {fixed:((h%12)+12)*60 + mm};
+  if(ap === "a") return {fixed:(h%12)*60 + mm};
+  if(h === 0 || h > 12) return {fixed:h*60 + mm};
+  const am = (h%12)*60 + mm, pm = ((h%12)+12)*60 + mm;
+  return {am, pm, def:(h === 12 || (h >= 1 && h <= 7)) ? pm : am};
+}
+function resolveRange(sRaw, eRaw){
+  const a = clockReadings(sRaw), b = clockReadings(eRaw);
+  if(!a || !b) return null;
+  const sOpts = a.fixed != null ? [a.fixed] : [a.am, a.pm];
+  const eOpts = b.fixed != null ? [b.fixed] : [b.am, b.pm];
+  if(eOpts.includes(0)) eOpts.push(1440);        // "8pm – 12:00 AM" ends at midnight, not starts there
+  let best = null;
+  for(const s of sOpts) for(const e of eOpts){
+    if(e <= s || e - s > 15*60) continue;
+    const odd = (a.fixed == null && s !== a.def ? 1 : 0) + (b.fixed == null && e !== b.def ? 1 : 0);
+    const score = odd*10000 + (e - s);
+    if(!best || score < best.score) best = {s, e, score};
+  }
+  return best ? [best.s, best.e] : null;
+}
+function trimDayTokens(text){
+  const toks = text.split(/[\s,/|]+/).filter(Boolean);
+  const isDay = t => /^[a-z.]+$/i.test(t) && parseDays(t).length > 0;
+  const isDate = t => /^\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?$/.test(t) || /^\d{1,2}$/.test(t);
+  while(toks.length && (isDay(toks[0]) || isDate(toks[0]))) toks.shift();
+  while(toks.length && isDay(toks[toks.length-1])) toks.pop();
+  return toks.join(" ");
+}
+/* A shift that runs past midnight: 10pm–2am. Split into two blocks by the caller. */
+function resolveOvernight(sRaw, eRaw){
+  const a = clockReadings(sRaw), b = clockReadings(eRaw);
+  if(!a || !b) return null;
+  const s = a.fixed != null ? a.fixed : a.def;
+  let e = b.fixed != null ? b.fixed : b.def;
+  if(e === 0) e = 1440;
+  return (e > s || s >= 1440 || e === 0) ? null : {s, e};
+}
+const TIME_RE = /(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)\s*(?:-|–|—|to|until|till|~)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)/i;
+/* Shift portals put start and end in separate table columns, so OCR gives
+   "4:00 PM 8:00 PM" with no dash at all. Then a clock needs a colon or am/pm
+   to count, which also keeps "4.00" hours and "(2)" from being read as times. */
+const CLOCK_G = /\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)|\d{1,2}:\d{2}/gi;
+
+function findRange(clean){
+  const m = clean.match(TIME_RE);
+  if(m) return {s:m[1], e:m[2], i:m.index, end:m.index + m[0].length};
+  CLOCK_G.lastIndex = 0;
+  const t = []; let x;
+  while((x = CLOCK_G.exec(clean)) !== null) t.push({raw:x[0], i:x.index, end:x.index + x[0].length});
+  for(let i = 0; i + 1 < t.length; i++)
+    if(/^[\s,]*$/.test(clean.slice(t[i].end, t[i+1].i)))
+      return {s:t[i].raw, e:t[i+1].raw, i:t[i].i, end:t[i+1].end};
+  return null;
+}
+const hasTimes = l => !!findRange(l.replace(/\s+/g," ").trim());
+
+function parseLine(line){
+  const clean = line.replace(/[•*]/g,"").replace(/\s+/g," ").trim();
+  if(!clean || clean.startsWith("#") || clean.startsWith("//")) return null;
+  const m = findRange(clean);
+  if(!m) return {error:"no start–end time found"};
+  const before = clean.slice(0, m.i), after = clean.slice(m.end);
+  let start, end, overnight = false;
+  const range = resolveRange(m.s, m.e);
+  if(range){ [start,end] = range; }
+  else{
+    const ov = resolveOvernight(m.s, m.e);
+    if(!ov) return {error:"couldn't read the times"};
+    start = ov.s; end = ov.e; overnight = true;
+  }
+
+  const dated = parseDate(before) || parseDate(after);
+  let days, fromBefore = true, pinned = null;
+  if(dated){ days = [dated.day]; pinned = dated.week; fromBefore = !!parseDate(before); }
+  else{
+    days = parseDays(before);
+    if(!days.length){ days = parseDays(after); fromBefore = false; }
+  }
+  if(!days || !days.length) return {error:"no day found"};
+
+  const other = fromBefore ? after : before;
+  let title = other.replace(/^[\s,:—–\-]+|[\s,:—–\-]+$/g,"").trim();
+  if(!title) title = trimDayTokens(fromBefore ? before : after);
+  else title = trimDayTokens(title) || title;
+  title = title.replace(/\b\d{1,2}\.\d{2}\b/g," ")          // shift-hour totals: "4.00"
+               .replace(/\s+/g," ")
+               .replace(/^[\s,:—–\-]+|[\s,:—–\-]+$/g,"").trim();   // may be empty; place name fills in
+  return {days, start, end, title, pinned, overnight};
+}
+
+/* ================= rendering ================= */
+function renderWeekBar(){
+  $("#wkTitle").textContent = weekTitle(VIEW);
+  $("#wkDates").textContent = weekDates(VIEW);
+  const n = weekEvents(VIEW).length, once = S.events.filter(e => e.week === VIEW).length;
+  $("#wkCount").textContent = `${n} block${n===1?"":"s"} · ${once} just this week`;
+}
+/* ---- edit a block after the fact ---- */
+/* isNew: the block does not exist yet, so Save adds it and Cancel discards it. */
+function openEdit(e, isNew){
+  const wrap = el("div","modal");
+  wrap.innerHTML = `<div class="sheet">
+    <h3>${isNew ? "New shift" : "Edit this block"}</h3>
+    <p class="sub">${isNew ? "Times come from where you tapped. Change anything before saving."
+                           : "Change what it's called, when it is, or whose it is."}</p>
+    <div class="row" style="margin-bottom:12px">
+      <div class="f"><label>Whose</label><select class="eWho">
+        <option value="a">${escapeHTML(nameOf("a"))}</option>
+        <option value="b">${escapeHTML(nameOf("b"))}</option></select></div>
+      <div class="f"><label>Where</label><select class="eKind"></select></div>
+      <div class="f eShiftWrap"><label>Shift</label><select class="eShift"></select></div>
+      <div class="f eStationWrap"><label>Station</label><select class="eStation"></select></div>
+      <div class="f eTitleWrap" style="flex:1;min-width:200px"><label>What it's called</label>
+        <input class="eTitle" placeholder="e.g. front desk"></div>
+    </div>
+    <div class="row" style="margin-bottom:14px">
+      <div class="f fdays"><label>Days</label><div class="days eDays"></div>
+        <small class="dayhint"></small></div>
+      <div class="f"><label>Start</label><input class="eStart" type="time"></div>
+      <div class="f"><label>End</label><input class="eEnd" type="time"></div>
+      <div class="f"><label>Repeats</label><select class="eRep">
+        <option value="once">Just this week</option>
+        <option value="every">Every week</option></select></div>
+      <div class="f"><label>Starting</label><select class="eFrom"></select></div>
+    </div>
+    <div class="eImpact"></div>
+    <div class="row">
+      <button class="btn eSave">${isNew ? "Add this shift" : "Save changes"}</button>
+      <button class="btn ghost eCancel">Cancel</button>
+      <button class="btn danger eDel" style="margin-left:auto${isNew ? ";display:none" : ""}">Delete this block</button>
+    </div></div>`;
+  document.body.appendChild(wrap);
+
+  const q = c => wrap.querySelector("." + c);
+  q("eWho").value = e.person;
+  fillPlaces(q("eKind"), e.person);
+  q("eKind").value = e.kind;
+  fillStations(q("eStation"), e.station || "");
+  fillShifts(q("eShift"), e.start, e.end);
+  q("eShift").onchange = () => {
+    const sh = RSO_SHIFTS.find(x => x[0] === q("eShift").value);
+    if(!sh) return;
+    q("eStart").value = toHHMM(sh[1]);
+    q("eEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
+    q("eEnd").dataset.exact = sh[2];
+  };
+  ["eStart","eEnd"].forEach(k => q(k).addEventListener("change", () => {
+    delete q("eEnd").dataset.exact;
+    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value));
+  }));
+  const syncEditStation = () => {
+    const on = hasStations(q("eKind").value);
+    wrap.querySelector(".eStationWrap").style.display = on ? "" : "none";
+    wrap.querySelector(".eShiftWrap").style.display   = on ? "" : "none";
+    wrap.querySelector(".eTitleWrap").style.display   = on ? "none" : "";
+  };
+  q("eKind").addEventListener("change", syncEditStation); syncEditStation();
+  q("eTitle").value = e.title;
+
+  /* The same block usually runs on more than one day: a daily standup is Monday
+     to Friday, kept as five blocks. Light up every day this one already covers so
+     an edit can add or drop days here instead of opening all five. */
+  const twins = isNew ? [] : S.events.filter(o =>
+    o.id !== e.id && !o.src && o.person === e.person && o.kind === e.kind &&
+    o.title === e.title && o.start === e.start && o.end === e.end &&
+    (o.week ?? null) === (e.week ?? null) && (o.from || "") === (e.from || "") &&
+    (o.station || "") === (e.station || ""));
+  const twinByDay = new Map(twins.map(o => [o.day, o]));
+  const litDays = () => [...wrap.querySelectorAll(".eDays button.on")].map(b => +b.dataset.d);
+  const hint = () => {
+    const n = litDays().length;
+    q("dayhint").textContent = n > 1
+      ? `Saves on all ${n} days. Tap a day off to drop it.`
+      : "Tap more days to put the same block on each of them.";
+  };
+  DAYS.forEach((d,i) => {
+    const b = el("button","",DAYBTN[i]);
+    b.type = "button"; b.dataset.d = i;
+    if(i === e.day || twinByDay.has(i)) b.classList.add("on");
+    b.onclick = () => { b.classList.toggle("on"); hint(); };
+    q("eDays").appendChild(b);
+  });
+  hint();
+  q("eStart").value = toHHMM(e.start);
+  q("eEnd").value = toHHMM(e.end);
+  q("eRep").value = e.week === null ? "every" : "once";
+  const fromSel = q("eFrom");
+  const fill = () => {
+    fromSel.innerHTML = "";
+    const opts = [["", "always (every week)"]];
+    for(let i = -8; i <= 8; i++){
+      const iso = isoOf(addDays(parseISO(thisWeekStart()), i*7));
+      opts.push([iso, weekTitle(iso) + ", " + weekDates(iso)]);
+    }
+    opts.forEach(([v,t]) => { const o = el("option"); o.value = v; o.textContent = t;
+      if((e.from || "") === v) o.selected = true; fromSel.appendChild(o); });
+  };
+  fill();
+  const syncFrom = () => fromSel.closest(".f").style.display = q("eRep").value === "every" ? "" : "none";
+  q("eRep").addEventListener("change", syncFrom); syncFrom();
+  q("eWho").onchange = () => fillPlaces(q("eKind"), q("eWho").value);
+  setTimeout(() => q("eTitle").focus(), 30);
+  const impact = () => {
+    const s0 = toMin(q("eStart").value), e0 = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
+    const wk = q("eRep").value === "every" ? null : (e.week || VIEW);
+    q("eImpact").innerHTML = shiftImpact(litDays().map(d => ({person: q("eWho").value, kind: q("eKind").value,
+      title: q("eTitle").value || e.title, day: d, start: s0, end: e0, week: wk})),
+      new Set(isNew ? [] : [e.id, ...twins.map(o => o.id)]));
+  };
+  ["change", "input", "click"].forEach(t => wrap.addEventListener(t, () => setTimeout(impact)));
+  impact();
+
+  const close = () => wrap.remove();
+  q("eCancel").onclick = close;
+  wrap.onclick = ev => { if(ev.target === wrap) close(); };
+  q("eDel").onclick = () => {
+    if(e.week === null && !confirm(`"${e.title}" repeats every week.\n\nOK = delete it from every week.`)) return;
+    close(); del(e.id);
+  };
+  q("eSave").onclick = () => {
+    const s = toMin(q("eStart").value);
+    const en = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
+    if(!(en > s)) return alert("The end time has to be after the start time.");
+    const place = q("eKind").value;
+    const station = hasStations(place) ? q("eStation").value : "";
+    const hadStation = !!e.station;
+    if(hasStations(place) && !station && (isNew || hadStation))
+      return alert("Pick which station it is.");
+    e.person = q("eWho").value;
+    e.kind   = place;
+    if(station){ e.station = station; e.title = station; }
+    else { delete e.station; e.title = q("eTitle").value.trim() || placeName(place); }
+    const days = litDays();
+    if(!days.length) return alert("Pick at least one day.");
+    // this block stays where it is if that day is still lit, and otherwise moves
+    // to the first lit day that no sibling of its own is already sitting on
+    e.day    = days.includes(e.day) ? e.day : (days.find(d => !twinByDay.has(d)) ?? days[0]);
+    e.start  = s; e.end = en;
+    e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
+    if(e.week === null){ const f = q("eFrom").value; if(f) e.from = f; else delete e.from; }
+    else delete e.from;
+    touch(e);
+    if(isNew) S.events.push(e);
+
+    // every other lit day reuses the sibling already there, or gets a fresh copy
+    days.filter(d => d !== e.day).forEach(d => {
+      const twin = twinByDay.get(d), copy = twin || { id: newId() };
+      Object.assign(copy, { person: e.person, kind: e.kind, title: e.title,
+                            day: d, start: e.start, end: e.end, week: e.week });
+      if(e.station) copy.station = e.station; else delete copy.station;
+      if(e.from) copy.from = e.from; else delete copy.from;
+      touch(copy);
+      if(!twin) S.events.push(copy);
+    });
+    // a sibling on a day you turned off goes, as does one on the day this block took
+    const gone = twins.filter(o => !days.includes(o.day) || o.day === e.day);
+    if(gone.length){
+      const t = Date.now(), ids = new Set(gone.map(o => o.id));
+      gone.forEach(o => S.tomb.push({ k: o.id, t }));
+      S.events = S.events.filter(x => !ids.has(x.id));
+    }
+    close(); renderAll(); syncSoon();
+  };
+}
+
+/* What a shift you're about to save does to that week: on-campus hours against
+   the 20h limit, roughly what it adds to pay, and any overnight-before-class
+   clash. Works by trying the change on a copy of the week. */
+function campusOf(w, iso){
+  return Object.entries(hoursFor(w, iso)).filter(([k]) => placeGroup(k) === "campus").reduce((t, [, v]) => t + v.mins, 0);
+}
+function shiftImpact(cands, drop = new Set()){
+  if(!cands.length || !(cands[0].end > cands[0].start)) return "";
+  const w = cands[0].person, iso = cands[0].week || VIEW, real = S.events;
+  const b = {campus: campusOf(w, iso), gross: payFor(w, iso).gross};
+  let a, tired;
+  S.events = real.filter(x => !drop.has(x.id)).concat(cands.map((c, i) => ({...c, id: "~" + i, week: c.week === null ? null : iso})));
+  try { a = {campus: campusOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); }
+  finally { S.events = real; }
+  const dc = a.campus - b.campus, dg = a.gross - b.gross, bits = [];
+  let cls = "impact";
+  if(dc){
+    const sign = dc > 0 ? "+" : "−";
+    if(breakWeek(iso)) bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus · break week, no 20h limit`);
+    else if(a.campus > CAMPUS_CAP){ cls += " bad"; bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus, ${dur(a.campus - CAMPUS_CAP)} over the 20h limit`); }
+    else bits.push(`${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} on campus, ${a.campus === CAMPUS_CAP ? "right at the limit" : dur(CAMPUS_CAP - a.campus) + " left"}`);
+  }
+  if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
+  if(tired.length){ cls += " bad"; bits.push(...tired.map(tiredText)); }
+  return bits.length ? `<div class="${cls}">${bits.map(escapeHTML).join("<br>")}</div>` : "";
+}
+
+/* ---- tap or drag empty space in a day to start a new shift ---- */
+function startCreate(ev, col, d, lo){
+  if(ev.button != null && ev.button !== 0) return;
+  if(ev.target.closest(".ev")) return;              // that is a move or resize, not a create
+  const rect = col.getBoundingClientRect();
+  const snap = v => Math.round(v / SNAP) * SNAP;
+  const atY  = y => Math.max(0, Math.min(1440, snap(lo + (y - rect.top) / PX)));
+  const y0 = ev.clientY, t0 = atY(y0);
+  const phone = isPhone();          // on touch a vertical drag means scroll, so tap only
+  let ghost = null, moved = false, aborted = false;
+
+  const draw = (a, b) => {
+    if(!ghost){ ghost = el("div","ev ghost"); ghost.style.left = "2px"; ghost.style.width = "calc(100% - 4px)";
+                col.appendChild(ghost); }
+    ghost.style.top = (Math.min(a,b) - lo) * PX + "px";
+    ghost.style.height = Math.max(2, Math.abs(b - a) * PX) + "px";
+    ghost.innerHTML = `<strong>${fmt(Math.min(a,b))} to ${fmt(Math.max(a,b))}</strong>`;
+  };
+  const move = m => {
+    if(Math.abs(m.clientY - y0) < 6) return;
+    if(phone){ aborted = true; return; }          // let the page scroll instead
+    moved = true; m.preventDefault();
+    draw(t0, atY(m.clientY));
+  };
+  const up = m => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    if(ghost) ghost.remove();
+    if(aborted) return;
+    let s = t0, e2 = moved ? atY(m.clientY) : t0 + 60;
+    if(e2 < s) [s, e2] = [e2, s];
+    if(e2 - s < SNAP) e2 = s + 60;                  // a plain tap gets a sensible default
+    if(e2 > 1440){ e2 = 1440; s = Math.min(s, 1440 - SNAP); }
+    const who = $("#fPerson").value;
+    openEdit({ id:newId(), person:who, day:d, start:s, end:e2, title:"",
+               kind:placesOf(who)[0][0], week:VIEW, m:Date.now() }, true);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+}
+
+/* ---- drag to move, drag the grips to resize. Snaps to 15 minutes. ---- */
+const SNAP = 15;
+let dragMoved = false;
+function startDrag(ev, e, lo){
+  if(ev.button !== 0) return;
+  const node = ev.currentTarget;
+  const mode = ev.target.classList.contains("top") ? "top"
+             : ev.target.classList.contains("bot") ? "bot" : "move";
+  const y0 = ev.clientY, x0 = ev.clientX;
+  const s0 = e.start, e0 = e.end, d0 = e.day, len = e0 - s0;
+  const cols = [...document.querySelectorAll("#grid .col")];
+  dragMoved = false;
+  node.setPointerCapture(ev.pointerId);
+  node.classList.add("dragging");
+
+  const snap = v => Math.round(v / SNAP) * SNAP;
+  const move = m => {
+    const dy = (m.clientY - y0) / PX;
+    if(!dragMoved && Math.abs(m.clientY - y0) < 4 && Math.abs(m.clientX - x0) < 4) return;
+    dragMoved = true;
+    if(mode === "move"){
+      let s = Math.max(0, Math.min(1440 - len, snap(s0 + dy)));
+      e.start = s; e.end = s + len;
+      const over = cols.findIndex(c => {          // let it cross into another day
+        const r = c.getBoundingClientRect();
+        return m.clientX >= r.left && m.clientX <= r.right;
+      });
+      if(over >= 0) e.day = over;
+    }else if(mode === "bot"){
+      e.end = Math.max(s0 + SNAP, Math.min(1440, snap(e0 + dy)));
+    }else{
+      e.start = Math.min(e0 - SNAP, Math.max(0, snap(s0 + dy)));
+    }
+    renderGrid();                                  // live feedback while dragging
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    node.classList.remove("dragging");
+    if(dragMoved){
+      if(e.day !== d0 || e.start !== s0 || e.end !== e0){ touch(e); renderAll(); syncSoon(); }
+      setTimeout(() => dragMoved = false, 0);      // let the click handler see it
+    }
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+}
+
+/* Two shifts at once for the same person get side-by-side columns instead of
+   being stacked on top of each other. Widths are per overlapping cluster, so a
+   lone block still uses the full lane. */
+function laneLayout(evs, out){
+  const sorted = evs.slice().sort((a,b) => a.start-b.start || a.end-b.end);
+  let i = 0;
+  while(i < sorted.length){
+    let j = i, end = sorted[i].end;
+    while(j+1 < sorted.length && sorted[j+1].start < end){ j++; end = Math.max(end, sorted[j].end); }
+    const cluster = sorted.slice(i, j+1), colEnd = [];
+    cluster.forEach(e => {
+      let c = colEnd.findIndex(t => t <= e.start);
+      if(c === -1){ c = colEnd.length; colEnd.push(0); }
+      colEnd[c] = e.end;
+      out.set(e, {c, n:1});
+    });
+    cluster.forEach(e => out.get(e).n = colEnd.length);
+    i = j + 1;
+  }
+  return out;
+}
+/* On a phone seven columns are unreadable, so show one day at a time. */
+// same query the stylesheet uses, so the layout and the renderer can never disagree
+const isPhone = () => window.matchMedia("(max-width:768px)").matches;
+let DAYSEL = new Date().getDay();
+const freeMins = d => freeTogether(d).filter(s => s[1]-s[0] >= 30).reduce((x,s) => x + s[1]-s[0], 0);
+
+function renderStrip(){
+  const strip = $("#daystrip"); strip.innerHTML = "";
+  const wkStart = parseISO(VIEW), today = isoOf(new Date());
+  DAYS.forEach((d,i) => {
+    const date = addDays(wkStart,i), t = freeMins(i);
+    const b = el("button", (i === DAYSEL ? "on " : "") + (isoOf(date) === today ? "today" : ""),
+      `<b>${d} ${date.getDate()}</b><small>${t ? dur(t) : "0h"}</small>`);
+    b.onclick = () => { DAYSEL = i; renderStrip(); renderGrid(); };
+    strip.appendChild(b);
+  });
+}
+
+function renderGrid(){
+  const g = $("#grid"); g.innerHTML = "";
+  /* An overnight shift stretches the window to a full 24h, so scale the day to
+     fit rather than letting the useful hours get pushed off screen. */
+  const phone = isPhone();
+  if(DAYSEL < 0 || DAYSEL > 6) DAYSEL = 0;
+  const [lo,hi] = gridWindow(phone ? [DAYSEL] : null);
+  PX = phone ? Math.max(0.55, Math.min(1.1, 620/(hi-lo)))
+             : Math.max(0.42, Math.min(0.9, 760/(hi-lo)));
+  const H = (hi-lo)*PX, wkStart = parseISO(VIEW), today = isoOf(new Date());
+  if(DAYSEL < 0 || DAYSEL > 6) DAYSEL = 0;
+  const shown = phone ? [DAYSEL] : [0,1,2,3,4,5,6];
+  g.style.gridTemplateColumns = phone ? "44px 1fr" : "";
+  g.appendChild(el("div","colhead",""));
+  shown.forEach(i => {
+    const date = addDays(wkStart,i), isToday = isoOf(date) === today;
+    const t = freeMins(i);
+    g.appendChild(el("div","colhead" + (isToday ? " today" : ""),
+      `<b>${DAYS[i]} ${date.getDate()}</b><small>${t ? dur(t) + " free" : "0h free"}</small>`));
+  });
+  const gut = el("div","gutter"); gut.style.height = H + "px";
+  for(let m = lo; m <= hi; m += 60){ const t = el("div","",fmt(m)); t.style.top = (m-lo)*PX + "px"; gut.appendChild(t); }
+  g.appendChild(gut);
+
+  shown.forEach(d => {
+    const isToday = isoOf(addDays(wkStart,d)) === today;
+    const col = el("div","col" + (isToday ? " today" : "")); col.style.height = H + "px";
+    for(let m = lo; m <= hi; m += 30){
+      const line = el("div", m % 60 ? "hr half" : "hr"); line.style.top = (m-lo)*PX + "px"; col.appendChild(line);
+    }
+    for(const [a,b] of freeTogether(d)){
+      if(b-a < 30) continue;
+      const band = el("div","band", b-a >= 60 ? `<b>${dur(b-a)} free</b>` : "");
+      band.style.top = (a-lo)*PX + "px"; band.style.height = (b-a)*PX + "px"; col.appendChild(band);
+    }
+    col.style.cursor = "copy";
+    col.addEventListener("pointerdown", ev => startCreate(ev, col, d, lo));
+    const dayEvents = weekEvents(VIEW).filter(x => x.day === d);
+    const slots = new Map();
+    ["a","b"].forEach(w => laneLayout(dayEvents.filter(x => x.person === w), slots));
+    for(const e of dayEvents.sort((x,y) => x.start-y.start)){
+      const tall = (e.end-e.start)*PX > 42;
+      const {c, n:ncols} = slots.get(e), laneL = e.person === "a" ? 0 : 50, laneW = 50/ncols;
+      const n = el("div","ev " + e.person + (e.week === null ? " rep" : ""),
+        `<strong>${escapeHTML(e.title)}</strong><em>${fmt(e.start)}–${fmt(e.end)}</em>` +
+        (tall ? `<em class="pl" style="color:${placeColor(e.kind)}">${escapeHTML(placeName(e.kind))}</em>` : ""));
+      n.style.top = (e.start-lo)*PX + "px";
+      n.style.height = Math.max(16,(e.end-e.start)*PX - 2) + "px";
+      n.style.left = `calc(${laneL + c*laneW}% + 2px)`;
+      n.style.width = `calc(${laneW}% - 4px)`;
+      n.style.borderLeft = "3px solid " + placeColor(e.kind);
+      n.appendChild(el("i","grip top"));
+      n.appendChild(el("i","grip bot"));
+      n.dataset.id = e.id;
+      n.title = `${nameOf(e.person)} · ${placeName(e.kind)}${e.station ? " · " + stationLabel(e.station) : ""} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
+                (e.week === null ? (e.from ? "\nRepeats every week from " + weekDates(e.from)
+                                            : "\nRepeats every week")
+                                 : "\nJust this week") + "\nClick to edit";
+      n.onclick = ev => {
+        if(dragMoved) return;                       // finished a drag, not a click
+        if(ev.target.classList.contains("grip")) return;
+        openEdit(e);
+      };
+      // dragging fights with scrolling on a touch screen, so tap opens the editor instead
+      if(!phone) n.addEventListener("pointerdown", ev => startDrag(ev, e, lo));
+      col.appendChild(n);
+    }
+    g.appendChild(col);
+  });
+}
+function renderFree(){
+  const min = +$("#minGap").value, isFree = $("#freeMode").value === "free";
+  const per = DAYS.map((_,d) => (isFree ? freeTogether(d) : busyTogether(d)).filter(s => s[1]-s[0] >= min));
+  const total = per.flat().reduce((t,s) => t + s[1]-s[0], 0), count = per.flat().length;
+  let bestD = -1, bestN = 0;
+  per.forEach((s,i) => { const n = s.reduce((t,x) => t + x[1]-x[0], 0); if(n > bestN){ bestN = n; bestD = i; } });
+  let longest = [0,-1];
+  per.forEach((s,i) => s.forEach(x => { if(x[1]-x[0] > longest[0]) longest = [x[1]-x[0], i, x]; }));
+  $("#stats").innerHTML = `
+    <div class="stat"><b>${dur(total)}</b><span>${isFree ? "free together" : "overlapping busy"} · ${weekTitle(VIEW).toLowerCase()}</span></div>
+    <div class="stat"><b>${count}</b><span>windows</span></div>
+    <div class="stat"><b>${bestD < 0 ? "none" : DAYS[bestD]}</b><span>${isFree ? "best day" : "busiest overlap"}</span></div>
+    <div class="stat"><b>${longest[1] < 0 ? "none" : dur(longest[0])}</b><span>${longest[1] < 0 ? "longest" : "longest: " + DAYS[longest[1]] + " " + fmt(longest[2][0])}</span></div>`;
+  /* A flat zero is nearly always a setup problem, not a real answer, so say which. */
+  const nA = weekEvents(VIEW).filter(e => e.person === "a").length;
+  const nB = weekEvents(VIEW).filter(e => e.person === "b").length;
+  const bw = badWake();
+  let why = `<b>${escapeHTML(nameOf("a"))}</b> ${nA} block${nA===1?"":"s"} · ` +
+            `<b>${escapeHTML(nameOf("b"))}</b> ${nB} block${nB===1?"":"s"} this week`;
+  let cls = "note";
+  if(bw.length){
+    cls = "note warn";
+    why = `${bw.map(escapeHTML).join(" and ")}'s waking hours are blank or end before they start, ` +
+          `so the whole day is being counted instead. Fix them under <b>Settings</b>. ` + why;
+  }else if(isFree && total === 0){
+    cls = "note warn";
+    why = (!nA && !nB) ? "No blocks in this week yet. Add some, or upload a photo. " + why
+      : (nA === 0 || nB === 0)
+        ? `Only one of you has blocks this week, so every waking hour should be free. If it says 0, check the minimum gap above. ${why}`
+        : `Nothing is free for ${dur(+$("#minGap").value)} straight this week. Try a smaller minimum gap, or check the waking hours in <b>Settings</b>. ${why}`;
+  }
+  $("#why").className = cls;
+  $("#why").innerHTML = why;
+
+  const wkStart = parseISO(VIEW);
+  $("#daylist").innerHTML = "";
+  DAYS.forEach((d,i) => {
+    const blk = el("div","dayblk"), n = per[i].reduce((t,x) => t + x[1]-x[0], 0);
+    blk.appendChild(el("h3","",`${d} ${addDays(wkStart,i).getDate()}<span>${n ? dur(n) : ""}</span>`));
+    if(!per[i].length) blk.appendChild(el("div","none","nothing " + (isFree ? "free" : "overlapping") + " this long"));
+    per[i].forEach(([a,b]) => blk.appendChild(
+      el("div","slot" + (isFree ? "" : " busy"), `<b>${fmt(a)} – ${fmt(b)}</b><span>${dur(b-a)}</span>`)));
+    $("#daylist").appendChild(blk);
+  });
+}
+/* Hours worked this week, split by person and by place. */
+/* At a job set up with an unpaid break, a long unbroken stretch has 30 unpaid
+   minutes in it, so an 8 hour shift is 7.5 paid hours. Back-to-back posts (A
+   then B, C1 then C2) are one stretch, so the break comes off once. */
+const BREAK_AFTER = 8 * 60;      // a run this long or longer carries a break
+const BREAK_MINS  = 30;
+const NIGHT_START = 0, NIGHT_END = 8 * 60;  // the overnight window some jobs pay extra for
+const nightMins = e => Math.max(0, Math.min(e.end, NIGHT_END) - Math.max(e.start, NIGHT_START));
+/* US clocks go back an hour at 2am on the first Sunday of November and
+   forward at 2am on the second Sunday of March. A shift across that hour is an
+   hour longer or shorter than its times say (12am-8am that November night is 9
+   real hours), and it is the real hours that get paid. Those hours are all
+   overnight, so the night count moves with them. */
+function clockGain(iso, e){
+  const d = addDays(parseISO(iso), e.day);
+  if(d.getDay() !== 0 || !(e.start < 120 && e.end > 120)) return 0;
+  const m = d.getMonth(), n = d.getDate();
+  return m === 10 && n <= 7 ? 60 : m === 2 && n >= 8 && n <= 14 ? -60 : 0;
+}
+const realMins = (iso, e) => Math.max(0, e.end - e.start + clockGain(iso, e));
+
+/* Contiguous blocks for the same person at the same workplace on the same day. */
+function workRuns(person, iso, keep = () => true){
+  const runs = [];
+  const byDayKind = {};
+  weekEvents(iso).filter(e => e.person === person && keep(e)).forEach(e => {
+    const k = `${e.day}|${e.kind || "other"}`;
+    (byDayKind[k] ||= []).push(e);
+  });
+  Object.values(byDayKind).forEach(list => {
+    list.sort((a,b) => a.start - b.start);
+    let cur = null;
+    list.forEach(e => {
+      if(cur && e.start <= cur.end){ cur.end = Math.max(cur.end, e.end); cur.parts.push(e); }
+      else { cur = {start:e.start, end:e.end, kind:e.kind || "other", parts:[e]}; runs.push(cur); }
+    });
+  });
+  runs.forEach(r => r.len = r.end - r.start + r.parts.reduce((t, e) => t + clockGain(iso, e), 0));
+  return runs;
+}
+function hoursFor(person, iso, keep = () => true){
+  const by = {};
+  weekEvents(iso).filter(e => e.person === person && keep(e)).forEach(e => {
+    const k = e.kind || "other";
+    if(!by[k]) by[k] = {mins:0, shifts:0, breaks:0, night:0};
+    by[k].mins += realMins(iso, e);
+    by[k].night += Math.max(0, nightMins(e) + clockGain(iso, e));
+    by[k].shifts++;
+  });
+  workRuns(person, iso, keep).forEach(r => {
+    if(!jobHas(r.kind, "brk")) return;
+    if(r.len < BREAK_AFTER) return;
+    const k = r.kind;
+    if(!by[k]) return;
+    by[k].mins = Math.max(0, by[k].mins - BREAK_MINS);
+    // an M shift is all overnight, so its unpaid half hour comes out of the overnight hours
+    const runNight = r.parts.reduce((t, e) => t + Math.max(0, nightMins(e) + clockGain(iso, e)), 0);
+    by[k].night = Math.max(0, by[k].night - BREAK_MINS * runNight / r.len);
+    by[k].breaks++;
+  });
+  return by;
+}
+/* ---- pay: paid minutes (after the unpaid RSO break) times that job's rate ---- */
+const rateOf  = (w, k) => (S.pay && S.pay.rate[w][k]) || 0;
+const nightOf = (w, k) => (S.pay && S.pay.night[w][k]) || 0;
+const tipOf   = (w, k) => (S.pay && S.pay.tip[w][k]) || 0;
+const isUnpaid = (w, k) => !!(S.pay && S.pay.unpaid[w][k]);
+const hasRates = w => !!S.pay && (Object.keys(S.pay.rate[w]).length + Object.keys(S.pay.unpaid[w]).length) > 0;
+/* One job's money for the week: base, the overnight extra, and tips. */
+function jobPay(w, k, v){
+  if(isUnpaid(w, k) || !rateOf(w, k)) return {base:0, night:0, tips:0, total:0};
+  const base = v.mins / 60 * rateOf(w, k), night = v.night / 60 * nightOf(w, k), tips = v.mins / 60 * tipOf(w, k);
+  return {base, night, tips, total: base + night + tips};
+}
+const money = n => "$" + n.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+const shiftEndsAt = (iso, e) => { const d = addDays(parseISO(iso), e.day); d.setHours(0, e.end); return d.getTime(); };
+function payFor(w, iso, keep){
+  let gross = 0, tips = 0;
+  const missing = [];
+  Object.entries(hoursFor(w, iso, keep)).forEach(([k, v]) => {
+    if(isUnpaid(w, k)) return;
+    // "Other" holds classes and interviews as often as work, so no rate there is not a gap
+    if(!rateOf(w, k)){ if(v.mins && k !== "other") missing.push([k, v.mins]); return; }
+    const j = jobPay(w, k, v);
+    gross += j.total; tips += j.tips;
+  });
+  const r2 = x => Math.round(x * 100) / 100;
+  return {gross: r2(gross), tips: r2(tips), missing};
+}
+/* Past weeks are what was earned; the current one is what is coming, with what
+   has already been worked; a future week is only what is scheduled. */
+function weekPhase(iso){
+  const start = parseISO(iso).getTime(), end = addDays(parseISO(iso), 7).getTime(), now = Date.now();
+  return now >= end ? "past" : now < start ? "future" : "now";
+}
+function renderHours(){
+  const host = $("#hours"); host.innerHTML = "";
+  const prevIso = isoOf(addDays(parseISO(VIEW), -7));
+  // one scale across both people so the bars are comparable side by side
+  let peak = 0;
+  ["a","b"].forEach(w => Object.values(hoursFor(w, VIEW)).forEach(v => peak = Math.max(peak, v.mins)));
+
+  /* Both cards sit side by side, so work the two of you out first and then show
+     the same cells on each. Hiding a group on one card and not the other left the
+     remaining cells stretched to different widths, and nothing lined up. */
+  const people = ["a","b"].map(w => {
+    const by = hoursFor(w, VIEW), rows = Object.entries(by).sort((x,y) => y[1].mins - x[1].mins);
+    const total = rows.reduce((t,[,v]) => t + v.mins, 0);
+    const last  = Object.values(hoursFor(w, prevIso)).reduce((t,v) => t + v.mins, 0);
+    const split = {campus:0, off:0, coop:0, other:0};
+    rows.forEach(([k,v]) => split[placeGroup(k)] += v.mins);
+    return { w, rows, total, last, split };
+  });
+  const grand = people.reduce((t,p) => t + p.total, 0);
+  /* A group nobody worked stays hidden. One either of you worked still sets the
+     column count on both cards, so the cells come out the same width and the rows
+     below them start at the same height, without padding anyone out with a 0h. */
+  const shown = [["off","Off campus"], ["coop","Co-op"], ["other","Other"]]
+    .filter(([g]) => people.some(p => p.split[g]));
+
+  const brk = breakWeek(VIEW);
+  people.forEach(({ w, rows, total, last, split }) => {
+    const diff = total - last;
+    const over = !brk && split.campus > CAMPUS_CAP;
+    const mn = minOf(w), need = mn ? mn.h * 60 : 0, inMin = minWeek(w, VIEW);
+    const got = mn ? (rows.find(([k]) => k === mn.k) || [0, {mins:0}])[1].mins : 0;
+    const alerts = [
+      inMin && got < need
+        ? `${placeName(mn.k)} needs ${dur(need)} every week${mn.to ? " through " + parseISO(mn.to).toLocaleDateString(undefined, {day:"numeric", month:"short"}) : ""}. ${
+            got ? dur(got) + " scheduled, " : ""}${dur(need - got)} short.` : "",
+      ...tiredMornings(w, VIEW).map(tiredText)
+    ].filter(Boolean);
+    const card = el("div","hcard " + w);
+    card.innerHTML =
+      `<h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}<span class="hsub">${weekDates(VIEW)}</span></h3>
+       <div class="tot${over ? " over" : ""}">
+         <span class="totlbl">On campus</span>
+         ${dur(split.campus)}<span class="est">${brk ? "break week" : "of 20h"}</span>
+         <div class="cap${brk ? " open" : ""}"><i style="width:${brk ? 100 : Math.min(100, split.campus / CAMPUS_CAP * 100)}%"></i></div>
+         <small>${brk ? "University break: no 20h limit this week"
+           : over ? `${dur(split.campus - CAMPUS_CAP)} over the limit`
+           : split.campus === CAMPUS_CAP ? "Right at the limit" : `${dur(CAMPUS_CAP - split.campus)} left this week`}</small></div>
+       ${alerts.map(a => `<div class="alert">${escapeHTML(a)}</div>`).join("")}${
+         inMin && got >= need ? `<div class="alert ok">${escapeHTML(placeName(mn.k))} ${dur(need)} minimum met this week</div>` : ""}
+       <div class="split" style="--cols:${Math.max(shown.length, 1)}">
+         ${shown.map(([g,label]) => split[g]
+           ? `<div style="grid-row:1"><span>${label}</span>
+                <b>${dur(split[g])}</b></div>` : "").join("")}
+         <div class="tot-cell"><span>Everything</span><b>${dur(total)}</b>${
+           last ? `<em>${diff === 0 ? "same as last week"
+                 : `${diff > 0 ? "+" : "−"}${dur(Math.abs(diff))} vs last week`}</em>` : ""}</div>
+       </div>` +
+      (rows.length ? rows.map(([k,v]) => `
+        <div class="hrow">
+          <div class="lbl"><b>${escapeHTML(placeName(k))}</b>
+            <span>${dur(v.mins)} · ${v.shifts} shift${v.shifts===1?"":"s"}${
+              v.breaks ? ` · less ${v.breaks===1 ? "a 30m break" : v.breaks+" breaks"}` : ""}</span></div>
+          <div class="hbar"><i style="width:${peak ? Math.max(3, v.mins/peak*100) : 0}%;background:${placeColor(k)}"></i></div>
+        </div>`).join("")
+       : `<div class="none">No shifts this week.</div>`);
+    host.appendChild(card);
+  });
+  const over = ["a","b"].map(w => {
+    const mins = Object.entries(hoursFor(w, VIEW))
+      .filter(([k]) => placeGroup(k) === "campus")
+      .reduce((t,[,v]) => t + v.mins, 0);
+    return {who:nameOf(w), mins};
+  }).filter(x => !brk && x.mins > CAMPUS_CAP);
+  $("#hoursNote").className = over.length ? "note warn" : "note";
+  $("#hoursNote").innerHTML =
+    (over.length ? `<b>Over the 20h on-campus limit this week:</b> ` +
+       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)}`).join(", ") + `. ` : "") +
+    `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)}. ${grand ? dur(grand) : "0h"} worked between you. ` +
+    `Use the ‹ › arrows at the top to check another week.`;
+}
+function renderTable(){
+  const scope = $("#scope").value, tb = $("#evTable tbody"); tb.innerHTML = "";
+  let rows = scope === "week" ? S.events.filter(e => e.week === VIEW)
+           : scope === "every" ? S.events.filter(e => e.week === null) : S.events.slice();
+  rows.sort((x,y) => (x.week||"").localeCompare(y.week||"") || x.day-y.day || x.start-y.start);
+  if(!rows.length){
+    tb.innerHTML = `<tr><td colspan="8" class="none">Nothing here yet. Add a block, paste a schedule, or upload a photo.</td></tr>`;
+    return;
+  }
+  for(const e of rows){
+    const tr = el("tr");
+    const when = e.week === null ? `<span class="tag rep">every week</span>`
+      : `<span class="tag">${addDays(parseISO(e.week), e.day).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>`;
+    tr.innerHTML = `<td><span class="pill"><span class="dot ${e.person}"></span>${escapeHTML(nameOf(e.person))}</span></td>` +
+      `<td>${escapeHTML(e.title)}</td>` +
+      `<td><span class="tag" style="color:${placeColor(e.kind)};border-color:${placeColor(e.kind)}55">${escapeHTML(placeName(e.kind))}</span></td>` +
+      `<td>${when}</td><td>${DAYS[e.day]}</td>` +
+      `<td style="font-variant-numeric:tabular-nums">${fmt(e.start)} – ${fmt(e.end)}</td><td>${dur(e.week ? realMins(e.week, e) : e.end-e.start)}</td>`;
+    const td = el("td");
+    const ed = el("button","x","✎"); ed.title = "Edit"; ed.onclick = () => openEdit(e);
+    const x  = el("button","x","✕"); x.title = "Delete"; x.onclick = () => del(e.id);
+    td.appendChild(ed); td.appendChild(x); tr.appendChild(td);
+    tr.style.cursor = "pointer";
+    tr.onclick = ev => { if(!ev.target.closest("button")) openEdit(e); };
+    tb.appendChild(tr);
+  }
+}
+/* ---- paychecks ----
+   Each person sets how each employer pays under Pay -> Jobs and pay: every two
+   weeks, every week, or on the day; one recent payday; and how many days before
+   payday the pay period closes. A paid job no schedule mentions falls into a
+   plain two-weekly "Paycheck" so it still shows. */
+const DAY = 86400000;
+const dayNum = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - parseISO("2026-01-04")) / DAY);
+const cycleDays = pr => pr.cycle === "1w" ? 7 : 14;
+function payrollsOf(w){
+  const list = S.pay.payrolls[w].filter(pr => pr.kinds.length);
+  const covered = new Set(list.flatMap(pr => pr.kinds));
+  const loose = jobsOf(w).filter(j => !covered.has(j.k) && !isUnpaid(w, j.k) && rateOf(w, j.k)).map(j => j.k);
+  return loose.length ? list.concat([{id:"pay", label:"Paycheck", kinds:loose, cycle:"2w", pay:"", lag:6, fed:0, state:0, over:0, extra:0, loose:true}]) : list;
+}
+/* A schedule without a payday yet pays on Fridays, counted from this week. */
+const firstPayday = pr => pr.pay ? parseISO(pr.pay) : addDays(parseISO(thisWeekStart()), 5);
+function periodOf(pr, n){
+  const payday = addDays(firstPayday(pr), cycleDays(pr) * n), end = addDays(payday, -pr.lag);
+  return {pr, n, start: addDays(end, 1 - cycleDays(pr)), end, payday};
+}
+/* Paid hours and money for one person, one employer, over a run of dates. A
+   break only ever applies inside one day, so filtering by date never splits one. */
+function payRange(w, pr, start, end, keep = () => true){
+  let gross = 0, tips = 0, mins = 0;
+  const missing = new Map(), jobs = new Map(), lo = dayNum(start), hi = dayNum(end);
+  for(let wk = weekStartOf(start); wk <= end; wk = addDays(wk, 7)){
+    const iso = isoOf(wk);
+    const inside = e => { const n = dayNum(addDays(wk, e.day)); return n >= lo && n <= hi && pr.kinds.includes(e.kind) && keep(e, iso); };
+    Object.entries(hoursFor(w, iso, inside)).forEach(([k, v]) => {
+      if(isUnpaid(w, k)) return;
+      mins += v.mins;
+      if(v.mins) jobs.set(k, (jobs.get(k) || 0) + v.mins);
+      if(!rateOf(w, k)){ if(v.mins) missing.set(k, (missing.get(k) || 0) + v.mins); return; }
+      const j = jobPay(w, k, v); gross += j.total; tips += j.tips;
+    });
+  }
+  return {gross, tips, mins, missing, jobs};
+}
+/* The job a paycheck is for, by its own name, or "RSO + Library" when one
+   employer's fortnight covered two of them. */
+function jobTag(w, c){
+  const ks = c.jobs.size ? [...c.jobs].sort((x, y) => y[1] - x[1]).map(([k]) => k)
+           : c.pr.kinds.filter(k => jobsOf(w).some(j => j.k === k));
+  return `<span class="job" style="--c:${placeColor(ks[0])}">${escapeHTML(ks.length ? ks.map(placeName).join(" + ") : c.pr.label)}</span>`;
+}
+const shortDate = d => d.toLocaleDateString(undefined, {weekday:"short", day:"numeric", month:"short"});
+const span = (a, b) => a.getMonth() === b.getMonth()
+  ? `${a.getDate()}–${b.toLocaleDateString(undefined, {day:"numeric", month:"short"})}`
+  : `${a.toLocaleDateString(undefined, {day:"numeric", month:"short"})} – ${b.toLocaleDateString(undefined, {day:"numeric", month:"short"})}`;
+
+/* Every paycheck for one person whose payday falls in the window, oldest first.
+   An employer only appears if this person works there at all. */
+/* What comes off a paycheck: a federal %, with an optional extra % on the part
+   of the check over some amount (how bracketed withholding shows up on a
+   payslip), plus a state %. Copy them off a payslip and they match it. */
+function withheld(w, pr, gross){
+  if(pr.cash || gross <= 0) return 0;
+  const c = x => Math.round(x * 100) / 100;
+  return c(gross * pr.fed / 100 + (pr.over && pr.extra ? Math.max(0, gross - pr.over) * pr.extra / 100 : 0)) + c(gross * pr.state / 100);
+}
+const taxNote = (w, pr) => pr.cash ? "cash, nothing taken out" : pr.fed || pr.state ? "after tax, estimated" : "before tax";
+const checkKey = c => `${c.pr.id}:${isoOf(c.payday)}`;
+function paychecksFor(w, lo, hi){
+  const now = Date.now(), out = [];
+  payrollsOf(w).forEach(pr => {
+    const net = x => x - withheld(w, pr, x);
+    if(pr.cycle === "day"){ out.push(...dayPay(w, pr, lo, hi, now, net)); return; }
+    const n0 = Math.floor((dayNum(lo) - dayNum(firstPayday(pr))) / cycleDays(pr)) - 1;
+    const rows = [];
+    for(let n = n0; periodOf(pr, n).payday <= hi; n++){
+      const p = periodOf(pr, n);
+      if(p.payday < lo || p.payday > hi) continue;
+      const r = payRange(w, pr, p.start, p.end);
+      const done = payRange(w, pr, p.start, p.end, (e, iso) => shiftEndsAt(iso, e) <= now);
+      rows.push({...p, ...r, net: net(r.gross), doneNet: net(done.gross),
+                 state: p.payday.getTime() + DAY <= now ? "paid"
+                      : p.end.getTime() + DAY <= now ? "due"          // worked, waiting for payday
+                      : p.start.getTime() > now ? "later" : "now"});
+    }
+    rows.forEach(r => {
+      const a = S.pay.actual[w][checkKey(r)];
+      if(a){ r.estGross = r.gross; r.gross = a.g; r.net = a.n; r.actual = true; }
+    });
+    out.push(...rows);
+  });
+  return out.sort((a, b) => a.payday - b.payday || a.pr.label.localeCompare(b.pr.label));
+}
+
+/* A job paid on the spot: one paycheck per day worked there, handed over once
+   the shift is done. Days without a shift there simply don't appear. */
+function dayPay(w, pr, lo, hi, now, net){
+  const rows = [];
+  for(let d = new Date(lo); d <= hi; d = addDays(d, 1)){
+    const iso = isoOf(weekStartOf(d)), day = d.getDay();
+    const r = payRange(w, pr, d, d);
+    if(!r.mins) continue;
+    const last = Math.max(...weekEvents(iso).filter(e => e.person === w && e.day === day && pr.kinds.includes(e.kind))
+                                           .map(e => shiftEndsAt(iso, e)));
+    rows.push({pr, start:d, end:d, payday:d, ...r, net: net(r.gross),
+               doneNet: last <= now ? net(r.gross) : 0, state: last <= now ? "paid" : "later"});
+  }
+  return rows;
+}
+
+/* Each person's jobs, pay schedules and weekly minimum live in a fold under
+   their paychecks: set once, rarely touched. Rebuilt on every change except
+   while a box has the cursor, so a sync landing mid-typing doesn't throw it out. */
+function rateRows(w){
+  const money2 = v => v ? (+v).toFixed(2) : "";
+  const box = (attr, val, ph) => `<input type="number" inputmode="decimal" min="0" step="0.01"
+      data-w="${w}" ${attr} value="${money2(val)}" placeholder="${ph}">`;
+  const chk = (attr, on, text) => `<label class="unp"><input type="checkbox" data-w="${w}" ${attr}${on ? " checked" : ""}> ${text}</label>`;
+  const jobs = jobsOf(w).filter(j => !j.hide), paid = jobs.filter(j => !isUnpaid(w, j.k));
+  const jobRows = jobs.map(j => {
+    const k = j.k, unpaid = isUnpaid(w, k), a = `data-cfg="job" data-k="${k}"`;
+    return `<div class="prow jrow">
+      <div class="jtop"><i class="jdot" style="background:${placeColor(k)}"></i>
+        <input class="jname" ${a} data-w="${w}" data-f="label" value="${escapeHTML(j.label)}" maxlength="30">
+        <select ${a} data-w="${w}" data-f="group">${GROUPS.map(([g, t]) => `<option value="${g}"${j.group === g ? " selected" : ""}>${t}</option>`).join("")}</select>
+        <button type="button" class="x" data-cfg="jobdel" data-w="${w}" data-k="${k}" title="Remove this job">✕</button></div>
+      <span class="sub">${unpaid ? "" : `<i class="pre">$</i>${box(`data-k="${k}"`, rateOf(w, k), "rate")} /hr`}
+        ${chk(`data-k="${k}" data-unpaid="1"`, unpaid, "Unpaid")}</span>
+      ${unpaid ? "" : `<span class="sub opts">
+        ${chk(`${a} data-f="brk"`, j.brk, "30 min unpaid on 8h+ shifts")}
+        <span class="grp">${chk(`${a} data-f="night"`, j.night, "Overnight extra")}${j.night ? `<i class="pre">+ $</i>${box(`data-k="${k}" data-night="1"`, nightOf(w, k), "0.00")} /hr, 12–8am` : ""}</span>
+        <span class="grp">${chk(`${a} data-f="tips"`, j.tips, "Tips")}${j.tips ? `<i class="pre">+ $</i>${box(`data-k="${k}" data-tip="1"`, tipOf(w, k), "0.00")} /hr, roughly` : ""}</span></span>`}
+    </div>`;
+  }).join("");
+  const prRows = S.pay.payrolls[w].map((r, i) => {
+    const a = `data-cfg="pr" data-w="${w}" data-i="${i}"`, day = r.cycle === "day";
+    const num = (f, v, ph, step = "0.01") => `<input class="n" type="number" inputmode="decimal" min="0" step="${step}" ${a} data-f="${f}" value="${v || ""}" placeholder="${ph}">`;
+    return `<div class="prow jrow">
+      <div class="jtop"><input class="jname" ${a} data-f="label" value="${escapeHTML(r.label)}" maxlength="30">
+        <button type="button" class="x" data-cfg="prdel" data-w="${w}" data-i="${i}" title="Remove this pay schedule">✕</button></div>
+      <span class="sub opts">For ${paid.length ? paid.map(j => chk(`data-cfg="prkind" data-i="${i}" data-k="${j.k}"`, r.kinds.includes(j.k), escapeHTML(j.label))).join("")
+        : "<em>add a paid job first</em>"}</span>
+      <span class="sub"><span class="grp">Paid <select ${a} data-f="cycle">${[["2w","every 2 weeks"],["1w","every week"],["day","on the day"]]
+        .map(([v, t]) => `<option value="${v}"${r.cycle === v ? " selected" : ""}>${t}</option>`).join("")}</select></span>${day ? "" :
+        `<span class="grp">last payday <input type="date" ${a} data-f="pay" value="${r.pay}"></span>
+         <span class="grp">covers work up to ${num("lag", r.lag, "6", "1")} days before</span>`}</span>
+      <span class="sub">${chk(`${a} data-f="cash"`, r.cash, "Nothing taken out (cash)")}${r.cash ? "" :
+        `<span class="grp">Tax ${num("fed", r.fed, "0")}% federal</span><span class="grp">+ ${num("state", r.state, "0")}% state</span>
+         <span class="grp">+ ${num("extra", r.extra, "0")}% on the part over $${num("over", r.over, "0", "1")}</span>`}</span>
+    </div>`;
+  }).join("");
+  const m = minOf(w) || {};
+  return `<h5>Jobs</h5>${jobRows || `<div class="none">No jobs yet.</div>`}
+    <div class="addrow"><select data-cfg="jobadd" data-w="${w}"><option value="">+ Add a job…</option>${
+      JOB_TEMPLATES.map(([id, t]) => `<option value="${id}">${t}</option>`).join("")}</select></div>
+    <h5>How you're paid</h5>${prRows || `<div class="none">${paid.length ? "Not set yet, so paid jobs show as a plain paycheck every 2 weeks." : "Add a paid job first."}</div>`}
+    <div class="addrow"><button type="button" class="btn ghost sm" data-cfg="pradd" data-w="${w}">+ Add a pay schedule</button></div>
+    <h5>Weekly minimum</h5>
+    <div class="prow jrow"><span class="sub"><span class="grp">At <select data-cfg="min" data-w="${w}" data-f="k"><option value="">no minimum</option>${
+      jobs.map(j => `<option value="${j.k}"${m.k === j.k ? " selected" : ""}>${escapeHTML(j.label)}</option>`).join("")}</select></span>${m.k ? `
+      <span class="grp">at least <input class="n" type="number" inputmode="decimal" min="0" step="0.5" data-cfg="min" data-w="${w}" data-f="h" value="${m.h || ""}">h a week</span>
+      <span class="grp">until <input type="date" data-cfg="min" data-w="${w}" data-f="to" value="${m.to || ""}"></span>` : ""}</span></div>`;
+}
+/* A short key for a new job, unique across both people's lists. */
+function newJobKey(base){
+  const taken = new Set(jobsOf("a").concat(jobsOf("b")).map(j => j.k));
+  if(base && !taken.has(base)) return base;
+  let k; do k = "j" + Math.random().toString(36).slice(2, 7); while(taken.has(k));
+  return k;
+}
+function cfgChange(i, kind){
+  const raw = JSON.parse(JSON.stringify(S.pay)), w = i.dataset.w, k = i.dataset.k, f = i.dataset.f;
+  const ix = +i.dataset.i, val = i.type === "checkbox" ? i.checked : i.value;
+  if(kind === "job"){
+    const j = raw.jobs[w].find(x => x.k === k); if(!j) return;
+    if(i.type === "checkbox"){ if(val) j[f] = true; else delete j[f]; } else j[f] = val;
+  } else if(kind === "jobadd"){
+    const t = JOB_TEMPLATES.find(([id]) => id === val); if(!t) return;
+    const own = raw.jobs[w].some(x => x.k === "rso");
+    const used = new Set(raw.jobs.a.concat(raw.jobs.b).map(x => x.c));
+    const c = [...PALETTE.keys()].find(n => !used.has(n)) ?? raw.jobs[w].length % PALETTE.length;
+    // RSO keeps one key, so a couple who both work there share its stations and colour
+    const k2 = t[0] === "rso" && !own && jobsOf(w === "a" ? "b" : "a").some(x => x.k === "rso") ? "rso" : newJobKey(t[0] === "rso" ? "rso" : "");
+    raw.jobs[w].push({k: k2, c: (jobOf(k2) || {}).c ?? c, ...t[2]});
+    if(t[2].group === "coop") raw.unpaid[w][k2] = true;
+  } else if(kind === "jobdel"){
+    const j = raw.jobs[w].find(x => x.k === k); if(!j) return;
+    const used = S.events.some(e => e.person === w && e.kind === k);
+    if(!confirm(used ? `Remove ${j.label}? Its shifts stay on the calendar, but it leaves the job lists.` : `Remove ${j.label}?`)) return;
+    if(used) j.hide = true; else raw.jobs[w] = raw.jobs[w].filter(x => x.k !== k);
+    raw.payrolls[w].forEach(r => r.kinds = r.kinds.filter(x => x !== k));
+    if(raw.min[w] && raw.min[w].k === k) raw.min[w] = null;
+  } else if(kind === "pr"){
+    const r = raw.payrolls[w][ix]; if(!r) return;
+    if(i.type === "checkbox"){ if(val) r[f] = true; else delete r[f]; } else r[f] = val;
+  } else if(kind === "prkind"){
+    const r = raw.payrolls[w][ix]; if(!r) return;
+    r.kinds = val ? [...new Set(r.kinds.concat([k]))] : r.kinds.filter(x => x !== k);
+  } else if(kind === "pradd"){
+    const covered = new Set(raw.payrolls[w].flatMap(r => r.kinds));
+    raw.payrolls[w].push({id: "p" + Math.random().toString(36).slice(2, 7), label: "Paycheck", cycle: "2w", pay: "", lag: 6,
+      kinds: jobsOf(w).filter(j => !j.hide && !isUnpaid(w, j.k) && !covered.has(j.k)).map(j => j.k)});
+  } else if(kind === "prdel"){
+    if(!confirm(`Remove the "${raw.payrolls[w][ix].label}" pay schedule?`)) return;
+    raw.payrolls[w].splice(ix, 1);
+  } else if(kind === "min"){
+    if(f === "k" && !val) raw.min[w] = null;
+    else raw.min[w] = Object.assign(raw.min[w] || {h: 4, from: thisWeekStart()}, {[f]: val});
+  }
+  S.pay = normPay(raw); S.pm = Date.now();
+  save(); syncSoon(); renderAll(); renderPay(true);
+}
+
+/* "paid every Friday", "paid every other Friday", or nothing if paydays wander. */
+function cadence(checks){
+  const reg = checks.filter(c => c.pr.cycle !== "day");
+  const wd = new Set(reg.map(c => c.payday.getDay()));
+  if(wd.size !== 1) return "";
+  const name = reg[0].payday.toLocaleDateString(undefined, {weekday:"long"});
+  return reg.some(c => c.pr.cycle === "1w") || new Set(reg.map(c => dayNum(c.payday) % 14)).size > 1
+    ? `paid every ${name}` : `paid every other ${name}`;
+}
+function renderPay(force){
+  const host = $("#pay");
+  if(!host) return;
+  const typing = host.contains(document.activeElement) ? document.activeElement : null;
+  if(typing && !force) return;
+  // put the cursor back in the same box after the rebuild, matched on every data- attribute it has
+  const refocus = typing && typing.tagName.toLowerCase() + [...typing.attributes].filter(a => a.name.startsWith("data-"))
+    .map(a => `[${a.name}="${CSS.escape(a.value)}"]`).join("") +
+    ["data-night","data-tip","data-unpaid","data-cfg"].filter(a => !typing.hasAttribute(a)).map(a => `:not([${a}])`).join("");
+  const openFolds = new Set([...host.querySelectorAll("details[open]")].map(d => d.dataset.w));
+
+  // paydays from a week before the week on screen to four weeks after it
+  const lo = addDays(parseISO(VIEW), -7), hi = addDays(parseISO(VIEW), 27);
+  const ref = Math.max(Date.now() - DAY, parseISO(VIEW).getTime());
+  const all = [];
+  host.innerHTML = ["a","b"].map(w => {
+    const checks = paychecksFor(w, lo, hi);
+    all.push(...checks.map(c => ({...c, w})));
+    // the headline is the regular paycheck; an odd paid-on-the-day shift stays in the list below it
+    const next = checks.find(c => c.payday.getTime() >= ref && c.pr.cycle !== "day")
+      || checks.find(c => c.payday.getTime() >= ref) || checks[checks.length - 1];
+    const miss = new Map();
+    checks.forEach(c => c.missing.forEach((m, k) => miss.set(k, (miss.get(k) || 0) + m)));
+    const cells = next ? [
+      ["Before tax", money(next.gross)],
+      next.gross - next.net > 0.004 ? ["Tax held", money(next.gross - next.net)] : null,
+      next.state === "now" && next.doneNet ? ["So far", money(next.doneNet)]
+        : next.tips ? ["Tips in it", money(next.tips * (next.gross ? next.net / next.gross : 1))]
+        : ["Hours", next.mins ? dur(next.mins) : "–"]
+    ].filter(Boolean) : [];
+    const head = next ? `
+      <div class="tot paytot"><span class="totlbl">${next.state === "paid" ? "Paid" : "Next paycheck"} · ${shortDate(next.payday)}</span>
+        ${money(next.net)}<span class="est">${next.actual ? "after tax, from your payslip" : taxNote(w, next.pr)}</span>
+        <div class="src">${jobTag(w, next)}<span>${next.pr.cycle === "day" ? "cash, on the day" : `for ${span(next.start, next.end)}`}</span></div>${
+        miss.size ? `<small class="miss">No rate yet, not counted: ${escapeHTML([...miss].map(([k, m]) => `${placeName(k)} ${dur(m)}`).join(", "))}</small>` : ""}</div>
+      <div class="split" style="--cols:${cells.length}">${cells.map(([l, v]) => `<div><span>${l}</span><b>${v}</b></div>`).join("")}</div>`
+      : `<div class="none">${jobsOf(w).length ? "No paid work around these weeks." : "No jobs yet. Add them under Jobs and pay below."}</div>`;
+    const label = {paid:"Paid", due:"On its way", now:"In progress", later:"Scheduled"};
+    const rows = checks.map(c => `
+      <div class="check ${c.state}${c === next ? " next" : ""}">
+        <div class="cdate"><b>${shortDate(c.payday)}</b><span class="meta">${jobTag(w, c)}${c.pr.cycle === "day" ? "cash, on the day" : span(c.start, c.end)}</span></div>
+        <div class="camt"><b>${c.mins || c.actual ? money(c.net) : "–"}</b><span class="meta">${
+          c.mins ? dur(c.mins) : "nothing scheduled yet"}${
+          c.state === "paid" && !c.pr.cash && (c.mins || c.actual) ? `<button type="button" class="slip${c.actual ? " on" : ""}" data-slip="${w}|${checkKey(c)}"
+            title="${c.actual ? "From your payslip. Tap to change." : "Type in what the payslip says"}">${c.actual ? "Payslip ✓" : "+ Payslip"}</button>` : ""}<span class="state ${c.state}">${label[c.state]}</span></span></div>
+      </div>${SLIP === `${w}|${checkKey(c)}` ? `
+      <div class="slipform" data-w="${w}" data-key="${checkKey(c)}">
+        <label>Before tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sg" value="${c.gross.toFixed(2)}"></label>
+        <label>After tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sn" value="${c.actual ? c.net.toFixed(2) : ""}" placeholder="what landed"></label>
+        <button type="button" class="btn sm slipsave">Save</button>
+        ${c.actual ? `<button type="button" class="btn ghost sm slipclear">Use estimate</button>` : ""}
+        <button type="button" class="btn ghost sm slipx">Cancel</button>
+      </div>` : ""}`).join("");
+    return `<div class="hcard ${w}">
+      <h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}<span class="hsub">${cadence(checks)}</span></h3>
+      ${head}
+      <div class="checks"><h4>Paychecks</h4>${rows}</div>
+      <details class="rates" data-w="${w}"${openFolds.has(w) ? " open" : ""}><summary>Jobs and pay</summary>${rateRows(w)}</details>
+    </div>`;
+  }).join("");
+
+  $("#payMonths").innerHTML = monthTable();
+
+  // one line across both of you: who gets paid next, and how much
+  const upcoming = all.filter(c => c.payday.getTime() >= Date.now() - DAY && c.mins);
+  const firstDay = upcoming.length ? Math.min(...upcoming.map(c => dayNum(c.payday))) : null;
+  const firstChecks = upcoming.filter(c => dayNum(c.payday) === firstDay);
+  $("#payNote").innerHTML = (hasRates("a") || hasRates("b"))
+    ? (firstChecks.length
+        ? `<b>Next payday: ${shortDate(firstChecks[0].payday)}</b> · ${firstChecks.map(c =>
+            `${escapeHTML(nameOf(c.w))}, ${c.pr.label}, about ${money(c.net)}`).join("; ")}. `
+        : "") +
+      `Amounts are after tax and come from the schedule, so a shift you stay late on pays a little more. ` +
+      `Use the ‹ › arrows to look at other paychecks.`
+    : `Open <b>Jobs and pay</b> under each of you: add your jobs and their hourly rates, then how you're paid. The paychecks work themselves out.`;
+  if(refocus){ const n = host.querySelector(refocus); if(n){ n.closest("details") && (n.closest("details").open = true); n.focus(); } }
+}
+/* What each month put in the bank, by the day the money arrived: before tax,
+   what came off, and what was left. Runs from the first month with a paycheck
+   to the end of next month; months not over yet are what's expected. */
+let MONTH_WHO = "a", SLIP = null;
+document.addEventListener("click", ev => {
+  const t = ev.target.closest && ev.target.closest("[data-slip], .slipsave, .slipclear, .slipx");
+  if(!t) return;
+  if(t.dataset.slip){ SLIP = SLIP === t.dataset.slip ? null : t.dataset.slip; renderPay(true);
+    const f = $("#pay .slipform .sn"); if(f) f.focus(); return; }
+  const form = t.closest(".slipform"), w = form.dataset.w, key = form.dataset.key;
+  if(t.classList.contains("slipsave")){
+    const g = +form.querySelector(".sg").value, n = +form.querySelector(".sn").value;
+    if(!(g > 0 && n > 0 && n <= g)) return alert("Type both amounts from the payslip. After tax can't be more than before tax.");
+    const raw = JSON.parse(JSON.stringify(S.pay)); raw.actual[w][key] = {g, n};
+    S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon();
+  } else if(t.classList.contains("slipclear")){
+    const raw = JSON.parse(JSON.stringify(S.pay)); delete raw.actual[w][key];
+    S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon();
+  }
+  SLIP = null; renderPay(true);
+});
+function monthTable(){
+  const dated = S.events.filter(e => e.week).map(e => e.week).sort();
+  if(!dated.length) return "";
+  const today = new Date(), first = parseISO(dated[0]);
+  const lo = new Date(first.getFullYear(), first.getMonth(), 1);
+  const hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  const months = new Map();
+  (MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
+    if(!(c.mins || c.actual) || !c.gross) return;
+    const key = c.payday.getFullYear() * 12 + c.payday.getMonth();
+    const m = months.get(key) || {gross:0, net:0, n:0, cash:0};
+    m.gross += c.gross; m.net += c.net; m.n++; if(c.pr.cash) m.cash += c.gross;
+    months.set(key, m);
+  }));
+  const nowKey = today.getFullYear() * 12 + today.getMonth();
+  const rows = [...months].sort((x, y) => x[0] - y[0]);
+  const tot = rows.reduce((t, [, m]) => ({gross: t.gross + m.gross, net: t.net + m.net}), {gross:0, net:0});
+  const name = (key, month = "long") => new Date(Math.floor(key / 12), key % 12, 1).toLocaleDateString(undefined, {month, year:"numeric"});
+  const tab = (v, label) => `<button type="button" data-mwho="${v}" class="${MONTH_WHO === v ? "on" : ""}">${label}</button>`;
+  return `<div class="hcard months">
+    <h3>By month<span class="hsub mseg">${tab("a", escapeHTML(nameOf("a")))}${tab("b", escapeHTML(nameOf("b")))}${tab("both", "Both")}</span></h3>
+    ${rows.length ? `<table class="mtable"><thead><tr><th>Month</th><th>Before tax</th><th>Tax</th><th>After tax</th></tr></thead><tbody>
+      ${rows.map(([key, m]) => `<tr class="${key === nowKey ? "cur" : key > nowKey ? "ahead" : ""}">
+        <td><b class="ml">${name(key)}</b><b class="ms">${name(key, "short")}</b><span>${m.n} paycheck${m.n === 1 ? "" : "s"}${
+          key === nowKey ? " · this month" : key > nowKey ? " · expected" : ""}${m.cash ? ` · ${money(m.cash)} cash` : ""}</span></td>
+        <td>${money(m.gross)}</td><td>${m.gross - m.net > 0.004 ? "−" + money(m.gross - m.net) : "–"}</td><td><b>${money(m.net)}</b></td></tr>`).join("")}
+      </tbody><tfoot><tr><td><b>Total</b><span>${name(rows[0][0]).split(" ")[0]} – ${name(rows[rows.length - 1][0])}</span></td>
+        <td>${money(tot.gross)}</td><td>−${money(tot.gross - tot.net)}</td><td><b>${money(tot.net)}</b></td></tr></tfoot></table>`
+      : `<div class="none">No paychecks yet.</div>`}
+    ${refundBox()}
+    <div class="mfoot"><button type="button" class="btn ghost sm" id="payCsv">⬇ Download for taxes (CSV)</button>
+      <span>Every paycheck, with before tax, tax and after tax. Payslip amounts where you've typed them in.</span></div>
+  </div>`;
+}
+/* Tax held back this calendar year. A student who ends up owing no tax for the
+   year gets all of it back after filing, so this is the most that could return. */
+function refundBox(){
+  const now = new Date(), yr = now.getFullYear();
+  const who = MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO];
+  let held = 0, coming = 0;
+  who.forEach(w => paychecksFor(w, new Date(yr, 0, 1), new Date(yr, 11, 31)).forEach(c => {
+    const t = c.gross - c.net;
+    if(c.state === "paid") held += t; else if(c.mins) coming += t;
+  }));
+  if(held + coming < 0.01) return "";
+  return `<div class="refund"><div><span>Tax held back in ${yr}</span><b>${money(held)}</b>${
+      coming >= 0.01 ? `<em>+ about ${money(coming)} on paychecks still to come</em>` : ""}</div>
+    <p>Withholding isn't the tax you owe. If you end up owing no tax for ${yr}, all of it comes back after you file in spring ${yr + 1}.</p></div>`;
+}
+function payCsv(){
+  const dated = S.events.filter(e => e.week).map(e => e.week).sort();
+  const today = new Date(), first = dated.length ? parseISO(dated[0]) : today;
+  const lo = new Date(first.getFullYear(), first.getMonth(), 1), hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  const q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const lines = [["Person","Payday","Employer","Job","Period start","Period end","Hours","Before tax","Tax","After tax","Status","Source"]];
+  (MONTH_WHO === "both" ? ["a","b"] : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
+    if(!(c.mins || c.actual) || !c.gross) return;
+    const jobs = c.jobs.size ? [...c.jobs.keys()].map(placeName).join(" + ") : c.pr.label;
+    lines.push([nameOf(w), isoOf(c.payday), c.pr.label, jobs, isoOf(c.start), isoOf(c.end), (c.mins / 60).toFixed(2),
+      c.gross.toFixed(2), (c.gross - c.net).toFixed(2), c.net.toFixed(2),
+      {paid:"paid", due:"on its way", now:"in progress", later:"scheduled"}[c.state],
+      c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"]);
+  }));
+  download(`pay-${MONTH_WHO === "both" ? "both" : nameOf(MONTH_WHO).toLowerCase()}-${isoOf(today)}.csv`,
+    lines.map(r => r.map(q).join(",")).join("\n"), "text/csv");
+}
+document.addEventListener("click", ev => { if(ev.target.closest && ev.target.closest("#payCsv")) payCsv(); });
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-mwho]");
+  if(!b) return;
+  MONTH_WHO = b.dataset.mwho;
+  $("#payMonths").innerHTML = monthTable();
+});
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("#pay button[data-cfg]");
+  if(b) cfgChange(b, b.dataset.cfg);
+});
+document.addEventListener("change", ev => {
+  const i = ev.target;
+  if(!i.closest || !i.closest("#pay") || !i.dataset.w) return;
+  if(i.dataset.cfg) return cfgChange(i, i.dataset.cfg);
+  const v = i.value.trim() === "" ? 0 : +i.value;
+  const raw = JSON.parse(JSON.stringify(S.pay)), w = i.dataset.w, k = i.dataset.k;
+  if(i.dataset.unpaid){ if(i.checked) raw.unpaid[w][k] = true; else delete raw.unpaid[w][k]; }
+  else raw[i.dataset.night ? "night" : i.dataset.tip ? "tip" : "rate"][w][k] = v;
+  S.pay = normPay(raw);
+  S.pm = Date.now();
+  save(); syncSoon(); renderAll(); renderPay(true);
+});
+
+function renderAll(){
+  $("#nameA").value = S.nameA; $("#nameB").value = S.nameB;
+  $("#lgA").textContent = $("#stA").textContent = nameOf("a");
+  $("#lgB").textContent = $("#stB").textContent = nameOf("b");
+  ["#fPerson","#pWhoA"].forEach(()=>{});
+  ["#fPerson","#feedWho"].forEach(id => { $(id).options[0].text = nameOf("a"); $(id).options[1].text = nameOf("b"); });
+  $("#clrA").textContent = `Clear all of ${nameOf("a")}'s blocks`;
+  $("#clrB").textContent = `Clear all of ${nameOf("b")}'s blocks`;
+  renderBreaks();
+  fillPlaces($("#fKind"), $("#fPerson").value);
+  fillStations($("#fStation"), $("#fStation").value);
+  syncAddStation();
+  fillPlaces($("#feedKind"), $("#feedWho").value);
+  $("#wakeA").value = S.wakeA; $("#sleepA").value = S.sleepA;
+  $("#wakeB").value = S.wakeB; $("#sleepB").value = S.sleepB;
+  renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours();
+  renderPay(); save();
+  if(document.getElementById('feedState')) renderFeeds();
+}
+function del(id){
+  S.tomb.push({k:id, t:Date.now()});          // remember the deletion, or sync would undo it
+  S.events = S.events.filter(e => e.id !== id);
+  renderAll(); syncSoon();
+}
+const touch = e => { e.m = Date.now(); return e; };
+function bulkDelete(pred){
+  const t = Date.now();
+  S.events.filter(pred).forEach(e => S.tomb.push({k:e.id, t}));
+  S.events = S.events.filter(e => !pred(e));
+  renderAll(); syncSoon();
+}
+function addEvent(person, day, start, end, title, kind, week){
+  S.events.push({id:newId(), m:Date.now(), person, day, start, end,
+                 title:title||"Busy", kind:kind||"other", week:week===undefined?null:week});
+}
+
+/* ================= review & confirm ================= */
+let STAGE = [], stageWho = null, stageRepeat = "once";
+
+function stageLines(lines, source){
+  const rows = [], bad = [];
+  lines.forEach((ln,i) => {
+    const r = parseLine(ln);
+    if(!r) return;
+    if(r.error){ if(ln.trim()) bad.push(`line ${i+1}: ${r.error}: “${ln.trim()}”`); return; }
+    const st = matchStation(r.title);        // "407 Huntington/ A @ RSO Boston" -> 407 Huntington
+    r.days.forEach(d => {
+      if(r.overnight){                       // 10pm–2am becomes tonight's tail + tomorrow's head
+        rows.push({day:d, start:r.start, end:1440, title:r.title, station:st, pinned:r.pinned || null});
+        rows.push({day:(d+1)%7, start:0, end:r.end, title:r.title, station:st, pinned:r.pinned || null, rollover:d === 6});
+      }else{
+        rows.push({day:d, start:r.start, end:r.end, title:r.title, station:st, pinned:r.pinned || null});
+      }
+    });
+  });
+  STAGE = rows; stageWho = null;
+  renderReview(bad, source);
+}
+function renderReview(bad, source){
+  $$(".review").forEach(n => n.remove());
+  if(!STAGE.length && !bad.length) return;
+  const host = source === "photo" ? $("#v-photo") : $("#v-import");
+  const box = el("div","review");
+  box.innerHTML = `<h3>Found ${STAGE.length} block${STAGE.length===1?"":"s"}. Whose schedule is this?</h3>
+    <p class="sub">Nothing is added until you pick a person and confirm.</p>
+    <div class="askwho">
+      <button class="pa" data-w="a"><b>${escapeHTML(nameOf("a"))}</b><small>mine</small></button>
+      <button class="pb" data-w="b"><b>${escapeHTML(nameOf("b"))}</b><small>hers</small></button>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <div class="f"><label>These blocks</label>
+        <select class="rvRepeat">
+          <option value="once">happen in one week only</option>
+          <option value="every">repeat every week (classes, fixed shifts)</option>
+        </select></div>
+      <div class="f"><label>Which week</label><select class="rvWeek"></select></div>
+      <div class="f"><label>Where</label><select class="rvKind"></select></div>
+    </div>
+    <div class="pinned" style="display:none"></div>
+    <div class="rvtable"><table><thead><tr><th>Day</th><th>Time</th><th>Length</th><th>What</th><th></th></tr></thead><tbody></tbody></table></div>
+    ${bad.length ? `<div class="msg warn" style="margin-top:10px">Skipped ${bad.length} line${bad.length===1?"":"s"}:<br>${bad.map(escapeHTML).join("<br>")}</div>` : ""}
+    <div class="row" style="margin-top:14px">
+      <button class="btn go rvAdd" disabled>Pick a person first</button>
+      <button class="btn ghost rvCancel">Cancel</button>
+    </div>`;
+  host.appendChild(box);
+
+  const body = box.querySelector("tbody");
+  const paint = () => {
+    body.innerHTML = "";
+    STAGE.forEach((r,i) => {
+      const tr = el("tr");
+      const dayTd = el("td"), sel = el("select","cell");
+      DAYS.forEach((d,di) => { const o = el("option"); o.value = di; o.textContent = d;
+        if(di === r.day) o.selected = true; sel.appendChild(o); });
+      sel.onchange = () => { r.day = +sel.value; };
+      dayTd.appendChild(sel);
+      if(r.rollover) dayTd.appendChild(el("span","tag"," next wk"));
+
+      const lenTd = el("td","","");
+      const showLen = () => lenTd.textContent = r.end > r.start ? dur(r.end - r.start) : "0m";
+      const timeTd = el("td","cellwrap");
+      const mk = (key) => { const inp = el("input","cell"); inp.type = "time"; inp.value = toHHMM(r[key]);
+        inp.onchange = () => { r[key] = toMin(inp.value); showLen(); }; return inp; };
+      timeTd.appendChild(mk("start")); timeTd.appendChild(el("span","","–")); timeTd.appendChild(mk("end"));
+      showLen();
+
+      const titleTd = el("td"), ti = el("input","cell wide");
+      ti.type = "text"; ti.value = r.title; ti.placeholder = "(uses the place name)";
+      ti.oninput = () => { r.title = ti.value; };
+      const stSel = el("select","cell");
+      fillStations(stSel, r.station || "");
+      stSel.onchange = () => { r.station = stSel.value; sync(); };
+      if(!r.station) stSel.classList.add("unmatched");
+      titleTd.appendChild(ti); titleTd.appendChild(stSel);
+
+      const td = el("td"), x = el("button","x","✕");
+      x.onclick = () => { STAGE.splice(i,1); paint(); showStations(); sync(); };
+      td.appendChild(x);
+      [dayTd, timeTd, lenTd, titleTd, td].forEach(c => tr.appendChild(c));
+      body.appendChild(tr);
+    });
+  };
+  const addBtn = box.querySelector(".rvAdd");
+  const sync = () => {
+    addBtn.disabled = !stageWho || !STAGE.length;
+    addBtn.textContent = !STAGE.length ? "Nothing left to add"
+      : !stageWho ? "Pick a person first"
+      : `Add ${STAGE.length} block${STAGE.length===1?"":"s"} to ${nameOf(stageWho)}`;
+  };
+  /* Which week these land in is now shown and chosen, never inferred silently. */
+  const rvWeek = box.querySelector(".rvWeek");
+  for(let k = -2; k <= 5; k++){
+    const iso = isoOf(addDays(parseISO(thisWeekStart()), k*7)), o = el("option");
+    o.value = iso; o.textContent = weekTitle(iso) + ", " + weekDates(iso);
+    if(iso === VIEW) o.selected = true;
+    rvWeek.appendChild(o);
+  }
+  const rvRepeat = box.querySelector(".rvRepeat");
+  rvRepeat.onchange = () => rvWeek.disabled = rvRepeat.value === "every";
+
+  /* Rows that carried their own date from the photo: say so, and allow an override. */
+  const pinnedRows = STAGE.filter(r => r.pinned);
+  const pinBox = box.querySelector(".pinned");
+  if(pinnedRows.length){
+    const weeks = [...new Set(pinnedRows.map(r => weekTitle(r.pinned) + " (" + weekDates(r.pinned) + ")"))];
+    pinBox.style.display = "block";
+    pinBox.className = "pinned note warn";
+    pinBox.innerHTML = `<label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+      <input type="checkbox" class="rvIgnoreDates" style="margin-top:2px">
+      <span>${pinnedRows.length} of these rows carry their own date, so they will go to
+      <b>${weeks.map(escapeHTML).join("</b>, <b>")}</b> rather than the week picked above.
+      Tick this to ignore those dates and use the week you picked instead.</span></label>`;
+  }
+
+  const rvKind = box.querySelector(".rvKind");
+  rvKind.disabled = true;
+  box.querySelectorAll(".askwho button").forEach(b => b.onclick = () => {
+    box.querySelectorAll(".askwho button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); stageWho = b.dataset.w;
+    rvKind.disabled = false; fillPlaces(rvKind, stageWho);   // each person has their own job list
+    sync();
+  });
+  const rvKind2 = box.querySelector(".rvKind");
+  const showStations = () => {
+    const on = hasStations(rvKind2.value);
+    box.querySelectorAll("tbody select.cell").forEach(n => {});
+    box.querySelectorAll("tbody tr").forEach(tr => {
+      const cell = tr.children[3];
+      const inp = cell.querySelector("input"), sel = cell.querySelector("select");
+      if(inp) inp.style.display = on ? "none" : "";
+      if(sel) sel.style.display = on ? "" : "none";
+    });
+    const miss = on ? STAGE.filter(r => !r.station).length : 0;
+    let note = box.querySelector(".stationNote");
+    if(!note){ note = el("div","msg warn stationNote"); box.querySelector(".rvtable").after(note); }
+    note.style.display = miss ? "" : "none";
+    note.textContent = miss ? `${miss} row${miss===1?"":"s"} could not be matched to a station — pick one for each.` : "";
+  };
+  rvKind2.addEventListener("change", showStations);
+  box.querySelector(".rvCancel").onclick = () => { STAGE = []; box.remove(); };
+  addBtn.onclick = () => {
+    const rep = box.querySelector(".rvRepeat").value, kind = box.querySelector(".rvKind").value;
+    const target = rvWeek.value;
+    const ignoreDates = !!box.querySelector(".rvIgnoreDates")?.checked;
+    STAGE.forEach(r => {
+      const pin = (r.pinned && !ignoreDates) ? r.pinned : null;
+      let wk = rep === "every" ? null : (pin || target);
+      if(r.rollover && wk) wk = isoOf(addDays(parseISO(wk), 7));   // Sun night spills into next week
+      if(r.end > r.start){
+        const useStation = hasStations(kind) && r.station;
+        addEvent(stageWho, r.day, r.start, r.end,
+                 useStation ? r.station : (r.title || placeName(kind)), kind, wk);
+        if(useStation) S.events[S.events.length-1].station = r.station;
+      }
+    });
+    const n = STAGE.length, who = nameOf(stageWho);
+    const landed = rep === "every" ? VIEW : target;
+    STAGE = []; box.remove();
+    goWeek(landed); syncSoon();          // jump to where they actually went
+    const m = source === "photo" ? $("#ocrMsg") : $("#expMsg");
+    m.className = "msg";
+    m.textContent = `Added ${n} block${n===1?"":"s"} to ${who}: ${rep === "every" ? "repeating every week" : weekTitle(landed).toLowerCase() + ", " + weekDates(landed)}.`;
+    document.querySelector('nav.tabs button[data-v="week"]').click();
+    window.scrollTo({top:0, behavior:"smooth"});
+  };
+  paint(); showStations(); sync();
+  box.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+/* ================= photo / OCR ================= */
+let SHOTS = [];
+const drop = $("#drop");
+drop.onclick = () => $("#photoIn").click();
+["dragenter","dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => takeFiles(e.dataTransfer.files));
+$("#photoIn").onchange = e => { takeFiles(e.target.files); e.target.value = ""; };
+document.addEventListener("paste", e => {
+  if(!$("#v-photo").classList.contains("on")) return;
+  const f = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith("image/")).map(i => i.getAsFile());
+  if(f.length){ takeFiles(f); e.preventDefault(); }
+});
+function takeFiles(files){
+  [...files].filter(f => f && f.type.startsWith("image/")).forEach(f => {
+    const r = new FileReader();
+    r.onload = () => { SHOTS.push(r.result); paintShots(); };
+    r.readAsDataURL(f);
+  });
+}
+function paintShots(){
+  const h = $("#shots"); h.innerHTML = "";
+  SHOTS.forEach((src,i) => {
+    const s = el("div","shot"); const img = el("img"); img.src = src; s.appendChild(img);
+    const x = el("button","x","✕"); x.onclick = () => { SHOTS.splice(i,1); paintShots(); }; s.appendChild(x);
+    h.appendChild(s);
+  });
+  $("#ocrBtn").disabled = $("#ocrClear").disabled = !SHOTS.length;
+  $("#ocrBtn").textContent = SHOTS.length > 1 ? `Read ${SHOTS.length} images` : "Read the schedule";
+}
+$("#ocrClear").onclick = () => { SHOTS = []; paintShots(); $("#ocrTextCard").style.display = "none"; $$(".review").forEach(n=>n.remove()); };
+
+function prep(img, forceInvert){
+  const scale = Math.min(3, Math.max(1, 1500 / img.naturalWidth));
+  const c = el("canvas"); c.width = img.naturalWidth*scale; c.height = img.naturalHeight*scale;
+  const x = c.getContext("2d");
+  x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, c.width, c.height);
+  const d = x.getImageData(0,0,c.width,c.height), p = d.data;
+  let sum = 0;
+  for(let i = 0; i < p.length; i += 4){
+    const g = 0.299*p[i] + 0.587*p[i+1] + 0.114*p[i+2];
+    p[i] = p[i+1] = p[i+2] = g; sum += g;
+  }
+  const dark = (sum / (p.length/4)) < 110;          // light text on a dark screenshot
+  const inv = forceInvert || dark;
+  for(let i = 0; i < p.length; i += 4){
+    let g = inv ? 255 - p[i] : p[i];
+    g = g < 128 ? g*0.65 : 255 - (255-g)*0.65;      // push the contrast
+    p[i] = p[i+1] = p[i+2] = Math.max(0, Math.min(255, g));
+  }
+  x.putImageData(d,0,0);
+  return c;
+}
+const loadImg = src => new Promise((res,rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+let tessReady = null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  if(tessReady) return tessReady;
+  tessReady = new Promise((res,rej) => {
+    const s = el("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    s.onload = res; s.onerror = () => rej(new Error("offline"));
+    document.head.appendChild(s);
+  });
+  return tessReady;
+}
+$("#ocrBtn").onclick = async () => {
+  const msg = $("#ocrMsg"), bar = $("#ocrBar"), fill = bar.querySelector("i");
+  const btn = $("#ocrBtn"); btn.disabled = true;
+  msg.className = "msg"; msg.textContent = "Loading the text reader…";
+  bar.style.display = "block"; fill.style.width = "5%";
+  try{
+    await loadTesseract();
+  }catch(e){
+    bar.style.display = "none"; btn.disabled = false;
+    msg.className = "msg err";
+    msg.innerHTML = "Couldn't load the text reader. It needs internet the first time. " +
+      "You can still type the schedule under <b>Paste / Backup</b>, or send the photo to Claude and paste back what it gives you.";
+    return;
+  }
+  let all = [];
+  try{
+    for(let i = 0; i < SHOTS.length; i++){
+      msg.textContent = `Reading image ${i+1} of ${SHOTS.length}…`;
+      const canvas = prep(await loadImg(SHOTS[i]), $("#ocrInvert").checked);
+      const r = await Tesseract.recognize(canvas, "eng", {
+        logger: p => { if(p.status === "recognizing text")
+          fill.style.width = Math.round(((i + p.progress) / SHOTS.length) * 100) + "%"; }
+      });
+      all.push(r.data.text);
+    }
+  }catch(e){
+    bar.style.display = "none"; btn.disabled = false;
+    msg.className = "msg err"; msg.textContent = "The reader failed on that image: " + String(e).slice(0,120);
+    return;
+  }
+  fill.style.width = "100%";
+  setTimeout(() => bar.style.display = "none", 400);
+  btn.disabled = false;
+
+  // keep only lines that actually look like a schedule row, but show everything for editing
+  const lines = all.join("\n").split("\n").map(l => l.replace(/\s+/g," ").trim()).filter(Boolean);
+  const useful = lines.filter(hasTimes);
+  $("#ocrTextCard").style.display = "block";
+  $("#ocrText").value = (useful.length ? useful : lines).join("\n");
+  msg.className = useful.length ? "msg" : "msg warn";
+  msg.textContent = useful.length
+    ? `Read ${useful.length} line${useful.length===1?"":"s"} that look like schedule rows. Check them below.`
+    : "Couldn't find any lines with a start and end time. Fix them below, or type them by hand.";
+  if(useful.length) stageLines(useful, "photo");
+};
+$("#ocrParse").onclick = () => stageLines($("#ocrText").value.split("\n"), "photo");
+
+/* ================= actions ================= */
+$("#addBtn").onclick = () => {
+  const days = $$("#fDays button.on").map(b => +b.dataset.d);
+  const s = toMin($("#fStart").value);
+  const e = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
+  if(!days.length) return alert("Pick at least one day.");
+  if(e <= s) return alert("The end time has to be after the start time.");
+  const wk = $("#fRepeat").value === "every" ? null : VIEW;
+  const place = $("#fKind").value;
+  const station = hasStations(place) ? $("#fStation").value : "";
+  if(hasStations(place) && !station) return alert("Pick which station it is.");
+  const label = station || $("#fTitle").value.trim() || placeName(place);
+  days.forEach(d => {
+    addEvent($("#fPerson").value, d, s, e, label, place, wk);
+    if(station) S.events[S.events.length-1].station = station;
+  });
+  $("#fTitle").value = ""; renderAll(); syncSoon();
+};
+function syncAddStation(){
+  const on = hasStations($("#fKind").value);
+  $("#fStationWrap").style.display = on ? "" : "none";
+  $("#fShiftWrap").style.display   = on ? "" : "none";
+  $("#fTitleWrap").style.display   = on ? "none" : "";
+  if(on) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
+}
+$("#fShift").onchange = () => {
+  const sh = RSO_SHIFTS.find(x => x[0] === $("#fShift").value);
+  if(!sh) return;
+  $("#fStart").value = toHHMM(sh[1]);
+  $("#fEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
+  $("#fEnd").dataset.exact = sh[2];          // keep midnight as 24:00, not 23:59
+};
+["#fStart","#fEnd"].forEach(k => $(k).addEventListener("change", () => {
+  delete $("#fEnd").dataset.exact;
+  if(hasStations($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
+}));
+$("#fKind").addEventListener("change", syncAddStation);
+$("#fPerson").onchange = () => { fillPlaces($("#fKind"), $("#fPerson").value); syncAddStation(); };
+$("#impBtn").onclick = () => stageLines($("#impText").value.split("\n"), "import");
+$("#impDemo").onclick = () => { $("#impText").value =
+`MWF 9:15-10:20  CS 3500
+TuTh 11:45-1:25pm  Math 2331
+Mon Wed 2-5pm  Library front desk
+Tue 4-7pm  Dining hall shift
+Thu 5:30-8pm  Research assistant
+Sat 10am-4pm  Retail job`; };
+
+/* week navigation */
+const goWeek = iso => { VIEW = iso; $$(".review").forEach(n=>n.remove()); STAGE = []; renderAll(); };
+$("#prevW").onclick  = () => goWeek(isoOf(addDays(parseISO(VIEW), -7)));
+$("#nextW").onclick  = () => goWeek(isoOf(addDays(parseISO(VIEW),  7)));
+$("#todayW").onclick = () => goWeek(thisWeekStart());
+$("#copyPrev").onclick = () => {
+  const prev = isoOf(addDays(parseISO(VIEW), -7));
+  const src = S.events.filter(e => e.week === prev);
+  if(!src.length) return alert("Last week has no one-off shifts to copy.\n(Blocks that repeat every week are already here.)");
+  const here = S.events.filter(e => e.week === VIEW).length;
+  if(here && !confirm(`${weekTitle(VIEW)} already has ${here} one-off block${here===1?"":"s"}.\nCopy ${src.length} more from last week?`)) return;
+  src.forEach(e => addEvent(e.person, e.day, e.start, e.end, e.title, e.kind, VIEW));
+  renderAll();
+};
+$("#clrWeek").onclick = () => {
+  const n = S.events.filter(e => e.week === VIEW).length;
+  if(!n) return alert("No one-off blocks in this week.");
+  if(confirm(`Delete ${n} block${n===1?"":"s"} from ${weekTitle(VIEW).toLowerCase()}?\nRepeating blocks stay.`)){
+    bulkDelete(e => e.week === VIEW);
+  }
+};
+
+/* export */
+function download(name, text, mime){
+  const url = URL.createObjectURL(new Blob([text], {type:(mime||"application/json") + ";charset=utf-8"}));
+  const a = el("a"); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+$("#icsBtn").onclick = () => {
+  const min = +$("#minGap").value, wkStart = parseISO(VIEW);
+  const stamp = d => d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "T" +
+                     pad(d.getHours()) + pad(d.getMinutes()) + "00";
+  const out = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Schedule Sync//EN","CALSCALE:GREGORIAN"];
+  let n = 0;
+  DAYS.forEach((_,d) => freeTogether(d).filter(s => s[1]-s[0] >= min).forEach(([a,b]) => {
+    const s = addDays(wkStart,d); s.setMinutes(a);
+    const e = addDays(wkStart,d); e.setMinutes(b);
+    out.push("BEGIN:VEVENT",`UID:ss-${VIEW}-${d}-${a}-${n++}@schedulesync`,`DTSTAMP:${stamp(new Date())}`,
+      `DTSTART:${stamp(s)}`,`DTEND:${stamp(e)}`,`SUMMARY:Free together (${dur(b-a)})`,
+      `DESCRIPTION:${nameOf("a")} and ${nameOf("b")} are both free.`,"END:VEVENT");
+  }));
+  out.push("END:VCALENDAR");
+  if(!n) return alert("No free windows that long in this week.");
+  download(`free-together-${VIEW}.ics`, out.join("\r\n"), "text/calendar");
+};
+$("#expBtn").onclick = () => download("schedule-sync-backup.json", JSON.stringify(S,null,2));
+$("#impFileBtn").onclick = () => $("#fileIn").click();
+$("#fileIn").onchange = ev => {
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!Array.isArray(d.events)) throw 0;
+      askImport(d, "that backup file");
+    }catch(e){ note("That file isn't a Schedule Sync backup.", true); }
+  };
+  r.readAsText(f); ev.target.value = "";
+};
+$("#linkBtn").onclick = () => {
+  const url = location.origin + location.pathname + "#" + btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+  navigator.clipboard.writeText(url)
+    .then(() => note("Link copied (" + url.length + " characters). Text it to your partner."))
+    .catch(() => prompt("Copy this link:", url));
+};
+function note(t, err){ const m = $("#expMsg"); m.className = "msg" + (err ? " err" : ""); m.textContent = t; }
+
+$("#clrA").onclick   = () => { if(confirm("Delete all of " + nameOf("a") + "'s blocks, every week?")){ bulkDelete(e => e.person === "a"); } };
+$("#clrB").onclick   = () => { if(confirm("Delete all of " + nameOf("b") + "'s blocks, every week?")){ bulkDelete(e => e.person === "b"); } };
+$("#clrAll").onclick = () => { if(confirm("Delete everything and start over?")){ S = blank(); uid = 1; renderAll(); } };
+
+/* wiring */
+$$("nav.tabs button").forEach(b => b.onclick = () => {
+  $$("nav.tabs button").forEach(x => x.classList.remove("on")); b.classList.add("on");
+  $$(".view").forEach(v => v.classList.remove("on")); $("#v-" + b.dataset.v).classList.add("on");
+  if(b.dataset.v === "settings") fillSyncFields();
+});
+const fDayHint = () => {
+  const n = $$("#fDays button.on").length;
+  $("#fDayHint").textContent = n > 1
+    ? `Adds the same block on all ${n} days.`
+    : "Tap more days to add the same block on each of them.";
+};
+DAYS.forEach((d,i) => {
+  const b = el("button","",DAYBTN[i]);
+  b.type = "button"; b.dataset.d = i; if(WEEKDAYS.includes(i)) b.classList.add("on");
+  b.onclick = () => { b.classList.toggle("on"); fDayHint(); };
+  $("#fDays").appendChild(b);
+});
+fDayHint();
+const fImpact = () => {
+  const e0 = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
+  const place = $("#fKind").value;
+  $("#fImpact").innerHTML = shiftImpact($$("#fDays button.on").map(b => ({person: $("#fPerson").value, kind: place,
+    title: $("#fTitle").value || placeName(place), day: +b.dataset.d, start: toMin($("#fStart").value), end: e0,
+    week: $("#fRepeat").value === "every" ? null : VIEW})));
+};
+["change", "input", "click"].forEach(t => $("#addCard").addEventListener(t, () => setTimeout(fImpact)));
+fImpact();
+/* A stray paste into the name box used to blow out every dropdown, so cap it. */
+const NAME_MAX = 24;
+function setName(which, raw, input){
+  const v = String(raw).replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
+  S[which] = v;
+  if(input.value !== v) input.value = v;
+  S.sm = Date.now(); renderAll(); syncSoon();
+}
+$("#nameA").oninput = e => setName("nameA", e.target.value, e.target);
+$("#nameB").oninput = e => setName("nameB", e.target.value, e.target);
+["wakeA","sleepA","wakeB","sleepB"].forEach(k => $("#" + k).onchange = e => {
+  S[k] = e.target.value || blank()[k];      // an emptied field must not zero the week
+  S.sm = Date.now();
+  e.target.value = S[k];
+  renderAll(); syncSoon();
+});
+$("#minGap").onchange = renderFree;
+$("#freeMode").onchange = renderFree;
+$("#scope").onchange = renderTable;
+/* ---- job calendar feeds: UI ---- */
+function renderFeeds(){
+  const host = $("#feedList"); host.innerHTML = "";
+  const chip = $("#feedState");
+  chip.textContent = S.feeds.length ? S.feeds.length + " connected" : "none connected";
+  if(!S.feeds.length){ host.innerHTML = `<div class="none">No job calendars connected yet.</div>`; return; }
+  S.feeds.forEach(f => {
+    const n = S.events.filter(e => e.src === f.id).length;
+    const row = el("div","feedrow");
+    row.innerHTML =
+      `<div class="fmeta">
+         <b><span class="dot ${f.person}"></span>${escapeHTML(f.label || placeName(f.kind))}</b>
+         <span>${escapeHTML(nameOf(f.person))} · ${escapeHTML(placeName(f.kind))} · ${n} shift${n===1?"":"s"}</span>
+         <small>${f.server ? "pulled every 30 min by the scheduled job" : escapeHTML(f.url.slice(0,68)) + (f.url.length>68?"…":"")}</small>
+         ${f.err ? `<em class="bad">${escapeHTML(f.err)}</em>`
+                 : `<em>${f.last ? "updated " + new Date(f.last).toLocaleString() : "not fetched yet"}</em>`}
+       </div>`;
+    const x = el("button","x","✕");
+    x.title = "Disconnect and remove its shifts";
+    x.onclick = () => {
+      if(!confirm(`Disconnect "${f.label || placeName(f.kind)}" and remove its ${n} shift${n===1?"":"s"}?`)) return;
+      const t = Date.now();
+      S.events.filter(e => e.src === f.id).forEach(e => S.tomb.push({k:e.id, t}));
+      S.events = S.events.filter(e => e.src !== f.id);
+      S.feeds  = S.feeds.filter(x2 => x2.id !== f.id);
+      renderAll(); renderFeeds(); syncSoon();
+    };
+    row.appendChild(x);
+    host.appendChild(row);
+  });
+}
+$("#feedWho").onchange = () => fillPlaces($("#feedKind"), $("#feedWho").value);
+$("#feedAdd").onclick = async () => {
+  const msg = $("#feedMsg");
+  let url = normalizeFeedUrl($("#feedUrl").value);
+  if(!/^https?:\/\//i.test(url)){ msg.className = "msg err"; msg.textContent = "That does not look like a link."; return; }
+  const feed = { id: hash32(url).slice(0,8), url, person: $("#feedWho").value,
+                 kind: $("#feedKind").value, label: $("#feedLabel").value.trim(), m: Date.now() };
+  if(S.feeds.some(f => f.id === feed.id)){ msg.className = "msg err"; msg.textContent = "That calendar is already connected."; return; }
+  msg.className = "msg"; msg.textContent = "Fetching…";
+  S.feeds.push(feed);
+  try{
+    const r = await refreshFeed(feed);
+    msg.textContent = `Connected. Pulled in ${r.added} shift${r.added===1?"":"s"}.`;
+    $("#feedUrl").value = ""; $("#feedLabel").value = "";
+  }catch(err){
+    S.feeds = S.feeds.filter(f => f.id !== feed.id);
+    msg.className = "msg err";
+    msg.innerHTML = /Failed to fetch|NetworkError/i.test(String(err))
+      ? "Could not read that feed. The site is refusing to let a browser fetch it, which some schedulers do. Tell me and I will set up a workaround."
+      : "Could not read that feed: " + escapeHTML(String(err.message || err));
+  }
+  renderAll(); renderFeeds(); syncSoon();
+};
+$("#feedRefresh").onclick = async () => {
+  const msg = $("#feedMsg"); msg.className = "msg"; msg.textContent = "Refreshing…";
+  await refreshFeeds();
+  msg.textContent = "Refreshed " + new Date().toLocaleTimeString() + ".";
+};
+
+/* ---- theme: auto (follow the OS) → light → dark → auto ---- */
+const TKEY = "schedsync-theme";
+let THEME = "auto";
+try{ THEME = localStorage.getItem(TKEY) || "auto"; }catch(e){}
+const prefersLight = () => window.matchMedia("(prefers-color-scheme: light)").matches;
+function applyTheme(){
+  const eff = THEME === "auto" ? (prefersLight() ? "light" : "dark") : THEME;
+  document.documentElement.dataset.theme = eff;
+  const btn = $("#themeBtn");
+  btn.textContent = THEME === "auto" ? "◐" : eff === "light" ? "☀" : "☾";
+  btn.title = THEME === "auto" ? "Theme: follows your Mac (tap for light)"
+            : THEME === "light" ? "Theme: light (tap for dark)"
+            : "Theme: dark (tap to follow your Mac)";
+}
+$("#themeBtn").onclick = () => {
+  THEME = THEME === "auto" ? "light" : THEME === "light" ? "dark" : "auto";
+  try{ localStorage.setItem(TKEY, THEME); }catch(e){}
+  applyTheme(); renderAll();          // block colours are inline, so repaint them
+};
+window.matchMedia("(prefers-color-scheme: light)")
+      .addEventListener("change", () => { if(THEME === "auto") applyTheme(); });
+applyTheme();
+
+/* rotating the phone or resizing flips between the one-day and seven-day layout */
+let rzT = null, wasPhone = isPhone();
+window.addEventListener("resize", () => {
+  clearTimeout(rzT);
+  rzT = setTimeout(() => {
+    if(isPhone() !== wasPhone){ wasPhone = isPhone(); renderStrip(); renderGrid(); }
+    else renderGrid();
+  }, 150);
+});
+document.addEventListener("keydown", e => {
+  if(e.target.matches("input,textarea,select")) return;
+  if(e.key === "ArrowLeft") $("#prevW").click();
+  if(e.key === "ArrowRight") $("#nextW").click();
+});
+
+/* ---- sync controls ---- */
+/* Chrome restores form state after our script runs and can blank these, which
+   makes a working connection look forgotten. Re-fill on load and on tab open. */
+function fillSyncFields(){
+  $("#syncUrl").value = SYNC.url && SYNC.url !== SHARED.url ? SYNC.url : "";
+  $("#syncKey").value = SYNC.key && SYNC.key !== SHARED.key ? SYNC.key : "";
+  $("#syncRoom").value = SYNC.url && SYNC.url !== SHARED.url ? SYNC.room || "" : "";
+  const shared = SYNC.on && SYNC.url === SHARED.url;
+  $("#syncSimple").style.display = SYNC.on ? "none" : "";
+  $("#inviteBox").style.display = SYNC.on ? "" : "none";
+  $("#inviteLink").value = shared ? inviteLink(SYNC.room) : "Your own project: share its URL, key and room code instead";
+  $("#inviteCopy").style.display = shared ? "" : "none";
+}
+fillSyncFields();
+const syncMsg = (text, cls = "") => { const m = $("#syncMsg"); m.className = "msg" + (cls ? " " + cls : ""); m.textContent = text; };
+async function connect(cfg, okText){
+  SYNC = {...cfg, on:true}; saveSync(); seenStamp = null;
+  syncMsg("Connecting…");
+  await syncNow();
+  const bad = $("#syncState").classList.contains("bad");
+  syncMsg(bad ? "Couldn't reach it. Check your connection and try again." : okText, bad ? "err" : "");
+  if(!bad) syncStart();
+  fillSyncFields();
+}
+$("#syncSave").onclick = async () => {
+  const url = $("#syncUrl").value.trim(), key = $("#syncKey").value.trim(), room = $("#syncRoom").value.trim();
+  if(!url || !key || !room) return syncMsg("All three fields are needed.", "err");
+  if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)) return syncMsg("That doesn't look like a Supabase project URL.", "err");
+  dirty = true;
+  await connect({url, key, room}, "Connected. Put the same three values into your partner's copy and you're sharing a calendar.");
+};
+$("#syncStart").onclick = async () => {
+  dirty = true;                       // this device's calendar becomes the shared one
+  await connect({...SHARED, room:newRoomCode()}, "Shared calendar started. Copy the invite link and send it to your partner.");
+};
+/* Joining starts this device fresh. Whatever it held before is set aside as a
+   backup, never copied into someone else's calendar. */
+async function joinRoom(room){
+  if(!room) return syncMsg("That isn't an invite link.", "err");
+  if(SYNC.on && SYNC.room === room) return syncMsg("You're already in that shared calendar.");
+  const mine = S.events.length;
+  if((mine || SYNC.on) && !confirm(`Join the shared calendar from this invite?\n\nThis device's own calendar${mine ? ` (${mine} blocks)` : ""} is saved as a backup and set aside. None of it is copied into the shared one.`)) return;
+  try{ if(mine) localStorage.setItem("schedsync-backup", JSON.stringify(S)); }catch(e){}
+  clearInterval(syncTimer);
+  const did = S.did; S = blank(); S.did = did; uid = 1;
+  dirty = false; save(); renderAll();
+  await connect({...SHARED, room}, "Joined. You're now sharing a calendar.");
+}
+$("#joinBtn").onclick = () => joinRoom(roomFrom($("#joinCode").value));
+$("#inviteCopy").onclick = () => navigator.clipboard.writeText($("#inviteLink").value)
+  .then(() => syncMsg("Invite link copied. Send it only to your partner."))
+  .catch(() => { $("#inviteLink").select(); syncMsg("Select the link and copy it."); });
+$("#syncOff").onclick = () => {
+  SYNC.on = false; saveSync(); clearInterval(syncTimer);
+  syncStatus("off"); fillSyncFields();
+  syncMsg("Sharing off on this device. Your calendar stays here.");
+};
+
+/* Break weeks live with the room, so both of you see the same ones. */
+function renderBreaks(){
+  const host = $("#breakList"); if(!host) return;
+  const B = S.pay.breaks;
+  host.innerHTML = B.length ? B.map(([a, b], i) => `<div class="brow"><span>${
+      parseISO(a).toLocaleDateString(undefined, {day:"numeric", month:"short", year:"numeric"})} – ${
+      parseISO(b).toLocaleDateString(undefined, {day:"numeric", month:"short", year:"numeric"})}</span>
+      <button type="button" class="x" data-brdel="${i}" title="Remove">✕</button></div>`).join("")
+    : `<div class="none" style="margin-bottom:10px">No break weeks. Every week has the 20h limit.</div>`;
+}
+const setBreaks = B => { const raw = JSON.parse(JSON.stringify(S.pay)); raw.breaks = B; S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon(); renderAll(); };
+$("#brAdd").onclick = () => {
+  const a = $("#brFrom").value, b = $("#brTo").value;
+  if(!a || !b || b < a) return alert("Pick a start and an end date, end on or after the start.");
+  setBreaks(S.pay.breaks.concat([[a, b]]).sort((x, y) => x[0].localeCompare(y[0])));
+  $("#brFrom").value = $("#brTo").value = "";
+};
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-brdel]");
+  if(b) setBreaks(S.pay.breaks.filter((_, i) => i !== +b.dataset.brdel));
+});
+
+if(isPhone()) $("#addCard").removeAttribute("open");   // calendar first on a phone
+load(); paintShots(); renderAll();
+if(PENDING) askImport(PENDING.data, PENDING.from);
+if(JOIN) setTimeout(() => {
+  document.querySelector('nav.tabs button[data-v="settings"]').click();
+  joinRoom(JOIN);
+}, 50);
+refreshFeeds(true);
+setInterval(() => refreshFeeds(true), 30*60*1000);   // ask only once the app is on screen
+syncStatus(SYNC.on ? "connecting…" : "off");
+syncStart();
+setTimeout(fillSyncFields, 300);   // after any late form restoration
+document.addEventListener("visibilitychange", () => { if(!document.hidden) syncNow(true); });
+</script>
+</body>
+</html>

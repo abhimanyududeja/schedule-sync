@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Schedule Sync">
+  <rect width="512" height="512" rx="114" fill="#151824"/>
+  <rect x="100" y="76" width="122" height="360" rx="36" fill="#6d8cff"/>
+  <rect x="290" y="76" width="122" height="360" rx="36" fill="#ff77b0"/>
+  <rect x="64" y="214" width="384" height="92" rx="34" fill="#3ddc97"/>
+</svg>
