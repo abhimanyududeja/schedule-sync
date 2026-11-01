@@ -224,7 +224,44 @@
     border-radius:20px;border:1px solid var(--line);color:var(--faint)}
   .state.due{color:var(--free);border-color:var(--free-line);background:var(--free-soft)}
   .state.now{color:var(--a-text);border-color:var(--a-line);background:var(--a-soft)}
-  #payMonths{margin-top:14px}
+  .tolink{display:block;width:100%;text-align:left;cursor:pointer;margin-top:14px;font:inherit}
+  .tolink:hover b{text-decoration:underline}
+  #taxes{display:grid;gap:14px;max-width:880px}
+  /* wide screens: the summary and the months side by side, setup underneath */
+  @media (min-width:1100px){
+    #taxes{max-width:none;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:start}
+    .taxtop,#taxes .taxcard.setup{grid-column:1/-1}
+  }
+  .mtable td .mbar{margin-top:5px}
+  #taxes .narrow{display:none}
+  .taxtop{display:flex;gap:10px;flex-wrap:wrap}
+  .taxtop .mseg button{padding:6px 14px;font-size:13px}
+  .taxcard .tot{margin-bottom:14px}
+  .taxcard .tot small{margin-top:4px}
+  .thr{margin:16px 0 4px}
+  .thrhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;font-size:12.5px}
+  .thrhead b{font-size:13.5px} .thrhead span{color:var(--dim);text-align:right}
+  .thrbar{position:relative;height:10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)}
+  .thrbar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+  .thrbar i.yr{background:var(--free-soft);border:1px dashed var(--free-line);top:-1px;bottom:-1px}
+  .thrbar i.so{background:var(--free);z-index:1}
+  .thr.over .thrbar i.so{background:var(--warn)} .thr.over .thrbar i.yr{background:#ffb45c1f;border-color:#ffb45c66}
+  .thrbar em{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text);z-index:2;font-style:normal}
+  .thrbar em span{position:absolute;top:-18px;transform:translateX(-50%);font-size:10.5px;font-weight:650;color:var(--dim);white-space:nowrap}
+  .thr .thrbar{margin-top:20px}
+  .thrkey{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--faint)}
+  .thrkey i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .thrkey i.so{background:var(--free)} .thrkey i.yr{background:var(--free-soft);border:1px dashed var(--free-line)}
+  .thr.over .thrkey i.so{background:var(--warn)}
+  .rtable{margin-top:18px}
+  .rtable td:first-child{white-space:normal;padding-right:12px}
+  .rtable th,.rtable td{padding-left:6px}
+  .mtable td .mbar{display:block;height:3px;border-radius:2px;background:var(--a);opacity:.55;margin-top:6px;max-width:140px}
+  .fine{font-size:11.5px;color:var(--faint);line-height:1.5;margin:12px 0 0}
+  details.added{margin-top:16px}
+  .brow.wide{max-width:none}
+  .addx{margin-top:10px;align-items:flex-end}
+  .addx .f input{width:120px}
   details.rates h5{margin:14px 0 2px;font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
   .jrow .jtop{display:flex;align-items:center;gap:8px;grid-column:1/-1}
   .jrow .jdot{width:10px;height:10px;border-radius:50%;flex:none}
@@ -371,6 +408,11 @@
     .mtable td:last-child b{font-size:13px}
     .hcard.months{padding:16px 12px 10px}
     .refund{flex-direction:column;align-items:flex-start;gap:6px}
+    .thrhead{flex-direction:column;gap:2px} .thrhead span{text-align:left}
+    #taxes .wide{display:none} #taxes .narrow{display:table-cell}
+    .rtable td span{display:none}
+    .taxcard .split b{font-size:15px}
+    .mtable .mbar{display:none}
     .mfoot{flex-direction:column;align-items:flex-start}
     .slipform input{font-size:16px}
     .hcard.months h3{flex-wrap:wrap}
@@ -503,6 +545,7 @@
   <button data-v="free">Free Together</button>
   <button data-v="hours">Hours</button>
   <button data-v="pay">Pay</button>
+  <button data-v="taxes">Taxes</button>
   <button data-v="photo">Photo</button>
   <button data-v="import">Paste</button>
   <button data-v="events">All Blocks</button>
@@ -578,10 +621,15 @@
 <!-- ============ PAY ============ -->
 <section class="view" id="v-pay">
   <div class="note" id="payNote"></div>
-  <div class="hours" id="pay"></div><div id="payMonths"></div>
+  <div class="hours" id="pay"></div>
+  <button type="button" class="note tolink" data-goto="taxes">Month by month, tax held back and your estimated refund are under <b>Taxes →</b></button>
 </section>
 
 <!-- ============ PHOTO ============ -->
+<section class="view" id="v-taxes">
+  <div id="taxes"></div>
+</section>
+
 <section class="view" id="v-photo">
   <div class="card">
     <h2>Upload a photo or screenshot of a schedule</h2>
@@ -946,7 +994,8 @@ const blank = () => ({v:4, did:newDeviceId(), sm:0, nameA:"", nameB:"", crew:{},
 function normPay(p){
   const n = v => { const x = +v; return x > 0 && x < 1000 ? Math.round(x * 100) / 100 : 0; };
   const out = {rate:perP(() => ({})), night:perP(() => ({})), tip:perP(() => ({})), unpaid:perP(() => ({})), tax:perP(() => 0),
-               actual:perP(() => ({})), jobs:perP(() => []), payrolls:perP(() => []), min:perP(() => null), cap:perP(() => null), breaks:[]};
+               actual:perP(() => ({})), jobs:perP(() => []), payrolls:perP(() => []), min:perP(() => null), cap:perP(() => null), breaks:[],
+               extra:perP(() => []), taxcfg:perP(() => null)};
   const iso = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
   const str = (v, n = 40) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
   const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
@@ -984,6 +1033,14 @@ function normPay(p){
         fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
         ...(r.cash === true ? {cash: true} : {})});
     });
+    // paychecks typed in by hand (from a bank statement or an old payslip), for weeks the app has no shifts for
+    (((p && p.extra && p.extra[w]) || [])).forEach(x => {
+      const g = cents(x && x.g), nn = cents(x && x.n);
+      if(x && iso(x.d) && g > 0 && nn >= 0 && nn <= g) out.extra[w].push({d: x.d, l: str(x.l, 30) || "Paycheck", g, n: nn, ...(x.e === true ? {e: true} : {})});
+    });
+    out.extra[w].sort((a, b) => a.d.localeCompare(b.d));
+    const tc = p && p.taxcfg && p.taxcfg[w];
+    if(tc) out.taxcfg[w] = {std: tc.std !== false, state: tc.state === "none" ? "none" : "MA"};
     const cp = p && p.cap && p.cap[w];
     if(cp && Number.isFinite(+cp.h) && +cp.h >= 0 && +cp.h <= 100)
       out.cap[w] = {h: Math.round(+cp.h * 2) / 2, scope: cp.scope === "all" ? "all" : "campus"};
@@ -1165,6 +1222,8 @@ function mergeStates(local, remote){
       ["jobs","payrolls"].forEach(f => { if(!pay[f][w].length && other[f][w].length) pay[f][w] = other[f][w]; });
       if(!pay.min[w] && other.min[w]) pay.min[w] = other.min[w];
       if(!pay.cap[w] && other.cap[w]) pay.cap[w] = other.cap[w];
+      if(!pay.taxcfg[w] && other.taxcfg[w]) pay.taxcfg[w] = other.taxcfg[w];
+      if(!pay.extra[w].length && other.extra[w].length) pay.extra[w] = other.extra[w];
       if(!Object.keys(pay.actual[w]).length && Object.keys(other.actual[w]).length) pay.actual[w] = other.actual[w];
     });
     if(!pay.breaks.length && other.breaks.length) pay.breaks = other.breaks;
@@ -2606,7 +2665,7 @@ function renderPay(force){
     </div>`;
   }).join("");
 
-  $("#payMonths").innerHTML = monthTable();
+  renderTaxes();
 
   // one line across both of you: who gets paid next, and how much
   const upcoming = all.filter(c => c.payday.getTime() >= Date.now() - DAY && c.mins);
@@ -2622,10 +2681,8 @@ function renderPay(force){
     : `Open <b>Jobs and pay</b> under each of you: add your jobs and their hourly rates, then how you're paid. The paychecks work themselves out.`;
   if(refocus){ const n = host.querySelector(refocus); if(n){ n.closest("details") && (n.closest("details").open = true); n.focus(); } }
 }
-/* What each month put in the bank, by the day the money arrived: before tax,
-   what came off, and what was left. Runs from the first month with a paycheck
-   to the end of next month; months not over yet are what's expected. */
-let MONTH_WHO = "a", SLIP = null;
+/* Typing a payslip over a paid paycheck's estimate. */
+let SLIP = null;
 document.addEventListener("click", ev => {
   const t = ev.target.closest && ev.target.closest("[data-slip], .slipsave, .slipclear, .slipx");
   if(!t) return;
@@ -2643,80 +2700,219 @@ document.addEventListener("click", ev => {
   }
   SLIP = null; renderPay(true);
 });
-function monthTable(){
-  if(MONTH_WHO !== "all" && !people().includes(MONTH_WHO)) MONTH_WHO = "a";
-  const dated = S.events.filter(e => e.week).map(e => e.week).sort();
-  if(!dated.length) return "";
-  const today = new Date(), first = parseISO(dated[0]);
-  const lo = new Date(first.getFullYear(), first.getMonth(), 1);
-  const hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+/* ================= taxes =================
+   Single-filer rules for wages only. Federal: the standard deduction (US
+   residents, and students from India under the treaty) and then the 10%, 12%,
+   22% brackets. Massachusetts: nothing owed up to $8,000 of income ("No Tax
+   Status"); past it, 5% of what's over the $4,400 exemption, which the limited
+   income credit keeps to at most 10% of the amount over $8,000 until $14,000. */
+const TAXRULES = {
+  2025: {std:15750, br:[[11925,.10],[48475,.12],[103350,.22],[Infinity,.24]]},
+  2026: {std:16100, br:[[12400,.10],[50400,.12],[105700,.22],[Infinity,.24]]}
+};
+const MA = {line:8000, exempt:4400, rate:.05, credit:.10, creditTo:14000};
+const rulesFor = y => TAXRULES[y] || TAXRULES[Math.max(...Object.keys(TAXRULES).map(Number))];
+const taxcfgOf = w => (S.pay && S.pay.taxcfg[w]) || {std:true, state:"MA"};
+function fedTax(g, y, std){
+  const base = Math.max(0, g - (std ? rulesFor(y).std : 0));
+  let t = 0, lo = 0;
+  for(const [hi, r] of rulesFor(y).br){ if(base > lo) t += (Math.min(base, hi) - lo) * r; lo = hi; }
+  return t;
+}
+function maTax(g){
+  if(g <= MA.line) return 0;
+  const t = MA.rate * Math.max(0, g - MA.exempt);
+  return g <= MA.creditTo ? Math.min(t, MA.credit * (g - MA.line)) : t;
+}
+/* How a paycheck's withholding splits into federal and state. The payroll's
+   own rates say how; a hand-typed paycheck takes the state's flat 5% and puts
+   the rest down to federal. */
+function splitHeld(w, c){
+  const held = Math.max(0, c.gross - c.net), pr = c.pr || {};
+  if(pr.cash || !held) return {fed:0, st:0};
+  const f = c.gross * (pr.fed || 0) / 100 + (pr.over && pr.extra ? Math.max(0, c.gross - pr.over) * pr.extra / 100 : 0);
+  const st = c.gross * (pr.state || 0) / 100;
+  if(f + st > 0) return {fed: held * f / (f + st), st: held * st / (f + st)};
+  const s2 = taxcfgOf(w).state === "MA" ? Math.min(held, c.gross * MA.rate) : 0;
+  return {fed: held - s2, st: s2};
+}
+/* Every paycheck of one person's year: the app's own (from shifts, or a
+   payslip typed over them) plus the ones added by hand. */
+function yearChecks(w, y){
+  const now = Date.now();
+  const app = paychecksFor(w, new Date(y, 0, 1), new Date(y, 11, 31))
+    .filter(c => (c.mins || c.actual) && c.gross > 0)
+    .map(c => ({...c, src: c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"}));
+  const extra = S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y))).map(({x, i}) => ({
+    payday: parseISO(x.d), gross: x.g, net: x.n, label: x.l, idx: i, added: true, pr: {},
+    state: parseISO(x.d).getTime() <= now ? "paid" : "later", src: x.e ? "bank" : "payslip"}));
+  return app.concat(extra).map(c => ({...c, ...splitHeld(w, c), done: c.payday.getTime() <= now}))
+    .sort((a, b) => a.payday - b.payday);
+}
+/* Where the year is heading: what's been paid, the paychecks the app can already
+   see, and after the last of those the pace of the past eight weeks. */
+function taxYear(w, y){
+  const checks = yearChecks(w, y), now = new Date(), end = new Date(y, 11, 31);
+  const sum = (list, f) => list.reduce((t, c) => t + c[f], 0);
+  const done = checks.filter(c => c.done), ahead = checks.filter(c => !c.done);
+  const so = {gross: sum(done, "gross"), net: sum(done, "net"), fed: sum(done, "fed"), st: sum(done, "st")};
+  const recent = done.filter(c => c.payday.getTime() > now.getTime() - 56 * DAY);
+  const pace = recent.length ? sum(recent, "gross") / 8 : 0;
+  const ratio = so.gross ? {fed: so.fed / so.gross, st: so.st / so.gross, net: so.net / so.gross} : {fed:0, st:0, net:1};
+  const last = checks.length ? checks[checks.length - 1].payday : now;
+  const from = Math.max(last.getTime(), now.getTime());
+  const weeks = y === now.getFullYear() && end.getTime() > from ? (end.getTime() - from) / (7 * DAY) : 0;
+  const more = pace * weeks;
+  const yr = {gross: so.gross + sum(ahead, "gross") + more, fed: so.fed + sum(ahead, "fed") + more * ratio.fed,
+              st: so.st + sum(ahead, "st") + more * ratio.st};
+  yr.net = yr.gross - yr.fed - yr.st;
+  const cfg = taxcfgOf(w);
+  const owe = {fed: fedTax(yr.gross, y, cfg.std), st: cfg.state === "MA" ? maTax(yr.gross) : yr.st};
+  return {checks, so, yr, owe, pace, weeks, cfg, back: {fed: yr.fed - owe.fed, st: yr.st - owe.st}};
+}
+let TAX_WHO = "a", TAX_YEAR = new Date().getFullYear(), TAX_ADD = false;
+function renderTaxes(){
+  const host = $("#taxes"); if(!host) return;
+  if(host.contains(document.activeElement) && document.activeElement.matches("input, select")) return;
+  if(!people().includes(TAX_WHO)) TAX_WHO = "a";
+  const w = TAX_WHO, y = TAX_YEAR, T = taxYear(w, y), r = rulesFor(y), now = new Date();
+  const years = [...new Set([now.getFullYear(), ...S.pay.extra[w].map(x => +x.d.slice(0, 4)),
+    ...S.events.filter(e => e.person === w && e.week).map(e => +e.week.slice(0, 4))])].filter(v => v >= 2025).sort();
+  const seg = (attr, list, cur) => list.map(([v, t]) => `<button type="button" ${attr}="${v}" class="${String(cur) === String(v) ? "on" : ""}">${t}</button>`).join("");
+  const thisYear = y === now.getFullYear(), back = T.back.fed + T.back.st;
+  const signed = v => (v >= 0 ? "" : "−") + money(Math.abs(v));
+
+  // threshold bars: where the year stands now, and where it's heading
+  const bar = (title, line, sub, ok) => {
+    const top = Math.max(line, T.yr.gross) * 1.08, pct = v => Math.min(100, v / top * 100);
+    return `<div class="thr${ok ? "" : " over"}"><div class="thrhead"><b>${title}</b><span>${sub}</span></div>
+      <div class="thrbar"><i class="so" style="width:${pct(T.so.gross)}%"></i><i class="yr" style="width:${pct(T.yr.gross)}%"></i>
+        <em style="left:${pct(line)}%"><span>${money(line).replace(".00", "")}</span></em></div>
+      <div class="thrkey"><span><i class="so"></i>so far ${money(T.so.gross)}</span>${thisYear ? `<span><i class="yr"></i>by 31 Dec, about ${money(T.yr.gross)}</span>` : ""}</div></div>`;
+  };
+  const bars = (T.cfg.state === "MA" ? bar("Massachusetts", MA.line,
+      T.yr.gross <= MA.line ? "Under $8,000 for the year means no state tax at all" : "Over $8,000, so some state tax is due", T.yr.gross <= MA.line) : "") +
+    bar("Federal", T.cfg.std ? r.std : 0.01,
+      T.cfg.std ? (T.yr.gross <= r.std ? `Wages up to ${money(r.std).replace(".00", "")} are covered by the standard deduction` : "Past the standard deduction, so some federal tax is due")
+                : "No standard deduction, so tax starts at the first dollar", T.cfg.std && T.yr.gross <= r.std);
+
+  // month by month
   const months = new Map();
-  (MONTH_WHO === "all" ? people() : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
-    if(!(c.mins || c.actual) || !c.gross) return;
-    const key = c.payday.getFullYear() * 12 + c.payday.getMonth();
-    const m = months.get(key) || {gross:0, net:0, n:0, cash:0};
-    m.gross += c.gross; m.net += c.net; m.n++; if(c.pr.cash) m.cash += c.gross;
-    months.set(key, m);
-  }));
-  const nowKey = today.getFullYear() * 12 + today.getMonth();
-  const rows = [...months].sort((x, y) => x[0] - y[0]);
-  const tot = rows.reduce((t, [, m]) => ({gross: t.gross + m.gross, net: t.net + m.net}), {gross:0, net:0});
-  const name = (key, month = "long") => new Date(Math.floor(key / 12), key % 12, 1).toLocaleDateString(undefined, {month, year:"numeric"});
-  const tab = (v, label) => `<button type="button" data-mwho="${v}" class="${MONTH_WHO === v ? "on" : ""}">${label}</button>`;
-  return `<div class="hcard months">
-    <h3>By month<span class="hsub mseg">${people().map(w => tab(w, escapeHTML(nameOf(w)))).join("")}${tab("all", people().length > 2 ? "Everyone" : "Both")}</span></h3>
-    ${rows.length ? `<table class="mtable"><thead><tr><th>Month</th><th>Before tax</th><th>Tax</th><th>After tax</th></tr></thead><tbody>
-      ${rows.map(([key, m]) => `<tr class="${key === nowKey ? "cur" : key > nowKey ? "ahead" : ""}">
-        <td><b class="ml">${name(key)}</b><b class="ms">${name(key, "short")}</b><span>${m.n} paycheck${m.n === 1 ? "" : "s"}${
-          key === nowKey ? " · this month" : key > nowKey ? " · expected" : ""}${m.cash ? ` · ${money(m.cash)} cash` : ""}</span></td>
-        <td>${money(m.gross)}</td><td>${m.gross - m.net > 0.004 ? "−" + money(m.gross - m.net) : "–"}</td><td><b>${money(m.net)}</b></td></tr>`).join("")}
-      </tbody><tfoot><tr><td><b>Total</b><span>${name(rows[0][0]).split(" ")[0]} – ${name(rows[rows.length - 1][0])}</span></td>
-        <td>${money(tot.gross)}</td><td>−${money(tot.gross - tot.net)}</td><td><b>${money(tot.net)}</b></td></tr></tfoot></table>`
-      : `<div class="none">No paychecks yet.</div>`}
-    ${refundBox()}
-    <div class="mfoot"><button type="button" class="btn ghost sm" id="payCsv">⬇ Download for taxes (CSV)</button>
-      <span>Every paycheck, with before tax, tax and after tax. Payslip amounts where you've typed them in.</span></div>
+  T.checks.forEach(c => {
+    const k = c.payday.getMonth(), m = months.get(k) || {gross:0, fed:0, st:0, net:0, n:0, est:0, done:true};
+    m.gross += c.gross; m.fed += c.fed; m.st += c.st; m.net += c.net; m.n++;
+    if(c.src === "estimate") m.est++;
+    if(!c.done) m.done = false;
+    months.set(k, m);
+  });
+  const peak = Math.max(1, ...[...months.values()].map(m => m.gross));
+  const mname = k => new Date(y, k, 1).toLocaleDateString(undefined, {month:"long"});
+  const rows = [...months].sort((a, b) => a[0] - b[0]).map(([k, m]) => `<tr class="${m.done ? "" : "ahead"}">
+      <td><b>${mname(k)}</b><span>${m.n} paycheck${m.n === 1 ? "" : "s"}${!m.done ? " · expected" : m.est ? ` · ${m.est === m.n ? "estimated" : m.est + " estimated"}` : ""}</span>
+        <i class="mbar" style="width:${m.gross / peak * 100}%"></i></td>
+      <td>${money(m.gross)}</td><td class="wide">${m.fed > .004 ? "−" + money(m.fed) : "–"}</td><td class="wide">${m.st > .004 ? "−" + money(m.st) : "–"}</td>
+      <td class="narrow">${m.fed + m.st > .004 ? "−" + money(m.fed + m.st) : "–"}</td><td><b>${money(m.net)}</b></td></tr>`).join("");
+  const tot = T.checks.reduce((t, c) => ({gross: t.gross + c.gross, fed: t.fed + c.fed, st: t.st + c.st, net: t.net + c.net}), {gross:0, fed:0, st:0, net:0});
+
+  const added = S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y)));
+  host.innerHTML = `
+  <div class="taxtop">
+    <div class="mseg">${seg("data-twho", people().map(v => [v, escapeHTML(nameOf(v))]), w)}</div>
+    ${years.length > 1 ? `<div class="mseg">${seg("data-tyear", years.map(v => [v, v]), y)}</div>` : ""}
+  </div>
+  <div class="hcard ${w} taxcard">
+    <h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))} · ${y}<span class="hsub">${thisYear ? "so far this year" : "the whole year"}</span></h3>
+    <div class="tot paytot"><span class="totlbl">${thisYear ? "Estimated refund when you file" : "Estimated refund"}</span>
+      ${signed(back)}<span class="est">${back >= 0 ? "back" : "to pay"}${thisYear ? ` · spring ${y + 1}` : ""}</span>
+      <small>${T.so.gross ? `Federal ${signed(T.back.fed)} · ${T.cfg.state === "MA" ? "Massachusetts " + signed(T.back.st) : "state not estimated"}` : "No paychecks in this year yet."}</small></div>
+    <div class="split" style="--cols:3">
+      <div><span>Earned</span><b>${money(T.so.gross)}</b></div>
+      <div><span>Tax held</span><b>${money(T.so.fed + T.so.st)}</b></div>
+      <div><span>Taken home</span><b>${money(T.so.net)}</b></div>
+    </div>
+    ${bars}
+    <table class="mtable rtable"><thead><tr><th></th><th>Held back</th><th>Owed</th><th>Back</th></tr></thead><tbody>
+      <tr><td><b>Federal</b><span>${T.cfg.std ? "after the " + money(r.std).replace(".00", "") + " standard deduction" : "no standard deduction"}</span></td>
+        <td>${money(T.yr.fed)}</td><td>${money(T.owe.fed)}</td><td><b>${signed(T.back.fed)}</b></td></tr>
+      ${T.cfg.state === "MA" ? `<tr><td><b>Massachusetts</b><span>${T.yr.gross <= MA.line ? "No Tax Status: under $8,000" : "5% past the $4,400 exemption, with the low-income credit"}</span></td>
+        <td>${money(T.yr.st)}</td><td>${money(T.owe.st)}</td><td><b>${signed(T.back.st)}</b></td></tr>` : ""}
+    </tbody></table>
+    ${thisYear ? `<p class="fine">For the whole of ${y}: paychecks so far, the ones already scheduled${T.pace && T.weeks >= 1 ? `, then about ${money(T.pace)} a week for the last ${Math.round(T.weeks)} weeks, the pace of the past eight` : ""}.</p>` : ""}
+  </div>
+
+  <div class="hcard taxcard">
+    <h3>Month by month<span class="hsub">${y}</span></h3>
+    ${rows ? `<table class="mtable"><thead><tr><th>Month</th><th>Earned</th><th class="wide">Federal</th><th class="wide">State</th><th class="narrow">Tax</th><th>Take-home</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b><span>${T.checks.length} paychecks</span></td><td>${money(tot.gross)}</td>
+        <td class="wide">−${money(tot.fed)}</td><td class="wide">−${money(tot.st)}</td><td class="narrow">−${money(tot.fed + tot.st)}</td><td><b>${money(tot.net)}</b></td></tr></tfoot></table>`
+      : `<div class="none">No paychecks in ${y} yet.</div>`}
+    <details class="rates added"${TAX_ADD ? " open" : ""}><summary>Paychecks the app has no shifts for${added.length ? ` (${added.length})` : ""}</summary>
+      <p class="fine">Pay from before you started using the app, or from a job you don't track here. Copy it from a payslip, or from a bank statement (then tick "before tax is a guess").</p>
+      ${added.map(({x, i}) => `<div class="brow wide"><span><b>${parseISO(x.d).toLocaleDateString(undefined, {day:"numeric", month:"short"})}</b> · ${escapeHTML(x.l)}</span>
+        <span>${money(x.g)}${x.e ? " (guess)" : ""} → <b>${money(x.n)}</b></span>
+        <button type="button" class="x" data-xdel="${i}" title="Remove">✕</button></div>`).join("")}
+      <div class="row addx">
+        <div class="f"><label>Paid on</label><input type="date" class="xd" value="${y}-01-01"></div>
+        <div class="f"><label>From</label><input class="xl" maxlength="30" placeholder="Employer"></div>
+        <div class="f"><label>Before tax</label><input class="xg" type="number" inputmode="decimal" min="0" step="0.01"></div>
+        <div class="f"><label>After tax</label><input class="xn" type="number" inputmode="decimal" min="0" step="0.01"></div>
+        <label class="unp"><input type="checkbox" class="xe"> before tax is a guess</label>
+        <button type="button" class="btn ghost" id="xAdd">Add</button>
+      </div>
+    </details>
+    <div class="mfoot"><button type="button" class="btn ghost sm" id="payCsv">⬇ Download ${y} (CSV)</button>
+      <span>Every paycheck with federal and state tax, ready for filing.</span></div>
+  </div>
+
+  <div class="hcard taxcard setup">
+    <h3>Tax setup for ${escapeHTML(nameOf(w))}</h3>
+    <div class="row">
+      <div class="f"><label>Federal</label><select data-taxcfg="std">
+        <option value="1"${T.cfg.std ? " selected" : ""}>Standard deduction applies (US residents, students from India)</option>
+        <option value="0"${T.cfg.std ? "" : " selected"}>No standard deduction (most other student visas)</option></select></div>
+      <div class="f"><label>State</label><select data-taxcfg="state">
+        <option value="MA"${T.cfg.state === "MA" ? " selected" : ""}>Massachusetts</option>
+        <option value="none"${T.cfg.state === "MA" ? "" : " selected"}>Somewhere else (withholding only)</option></select></div>
+    </div>
+    <p class="fine">An estimate for a single filer whose only income is wages, using ${y} figures. Check it with Sprintax or a tax adviser before you file.</p>
   </div>`;
 }
-/* Tax held back this calendar year. A student who ends up owing no tax for the
-   year gets all of it back after filing, so this is the most that could return. */
-function refundBox(){
-  const now = new Date(), yr = now.getFullYear();
-  const who = MONTH_WHO === "all" ? people() : [MONTH_WHO];
-  let held = 0, coming = 0;
-  who.forEach(w => paychecksFor(w, new Date(yr, 0, 1), new Date(yr, 11, 31)).forEach(c => {
-    const t = c.gross - c.net;
-    if(c.state === "paid") held += t; else if(c.mins) coming += t;
-  }));
-  if(held + coming < 0.01) return "";
-  return `<div class="refund"><div><span>Tax held back in ${yr}</span><b>${money(held)}</b>${
-      coming >= 0.01 ? `<em>+ about ${money(coming)} on paychecks still to come</em>` : ""}</div>
-    <p>Withholding isn't the tax you owe. If you end up owing no tax for ${yr}, all of it comes back after you file in spring ${yr + 1}.</p></div>`;
-}
-function payCsv(){
-  const dated = S.events.filter(e => e.week).map(e => e.week).sort();
-  const today = new Date(), first = dated.length ? parseISO(dated[0]) : today;
-  const lo = new Date(first.getFullYear(), first.getMonth(), 1), hi = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-  const q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
-  const lines = [["Person","Payday","Employer","Job","Period start","Period end","Hours","Before tax","Tax","After tax","Status","Source"]];
-  (MONTH_WHO === "all" ? people() : [MONTH_WHO]).forEach(w => paychecksFor(w, lo, hi).forEach(c => {
-    if(!(c.mins || c.actual) || !c.gross) return;
-    const jobs = c.jobs.size ? [...c.jobs.keys()].map(placeName).join(" + ") : c.pr.label;
-    lines.push([nameOf(w), isoOf(c.payday), c.pr.label, jobs, isoOf(c.start), isoOf(c.end), (c.mins / 60).toFixed(2),
-      c.gross.toFixed(2), (c.gross - c.net).toFixed(2), c.net.toFixed(2),
-      {paid:"paid", due:"on its way", now:"in progress", later:"scheduled"}[c.state],
-      c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"]);
-  }));
-  download(`pay-${MONTH_WHO === "all" ? "everyone" : nameOf(MONTH_WHO).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${isoOf(today)}.csv`,
-    lines.map(r => r.map(q).join(",")).join("\n"), "text/csv");
-}
-document.addEventListener("click", ev => { if(ev.target.closest && ev.target.closest("#payCsv")) payCsv(); });
 document.addEventListener("click", ev => {
-  const b = ev.target.closest && ev.target.closest("[data-mwho]");
-  if(!b) return;
-  MONTH_WHO = b.dataset.mwho;
-  $("#payMonths").innerHTML = monthTable();
+  const t = ev.target.closest && ev.target.closest("[data-twho], [data-tyear], [data-xdel], #xAdd, [data-goto], #payCsv, details.added > summary");
+  if(!t) return;
+  if(t.dataset.goto){ document.querySelector(`nav.tabs button[data-v="${t.dataset.goto}"]`).click(); window.scrollTo(0, 0); return; }
+  if(t.id === "payCsv") return payCsv();
+  if(t.matches("details.added > summary")){ TAX_ADD = !t.parentElement.open; return; }
+  if(t.dataset.twho){ TAX_WHO = t.dataset.twho; return renderTaxes(); }
+  if(t.dataset.tyear){ TAX_YEAR = +t.dataset.tyear; return renderTaxes(); }
+  const raw = JSON.parse(JSON.stringify(S.pay));
+  if(t.dataset.xdel){
+    const x = raw.extra[TAX_WHO][+t.dataset.xdel];
+    if(!x || !confirm(`Remove the ${x.l} paycheck from ${x.d}?`)) return;
+    raw.extra[TAX_WHO].splice(+t.dataset.xdel, 1);
+  } else {
+    const f = t.closest(".addx"), d = f.querySelector(".xd").value, l = f.querySelector(".xl").value.trim();
+    const g = +f.querySelector(".xg").value, n = +f.querySelector(".xn").value;
+    if(!d || !(g > 0) || !(n >= 0) || n > g) return alert("Add the date, and both amounts. After tax can't be more than before tax.");
+    raw.extra[TAX_WHO].push({d, l: l || "Paycheck", g, n, ...(f.querySelector(".xe").checked ? {e: true} : {})});
+    TAX_ADD = true;
+  }
+  S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon(); renderTaxes();
 });
+document.addEventListener("change", ev => {
+  const i = ev.target;
+  if(!i.dataset || !i.dataset.taxcfg) return;
+  const raw = JSON.parse(JSON.stringify(S.pay)), cur = taxcfgOf(TAX_WHO);
+  raw.taxcfg[TAX_WHO] = Object.assign({}, cur, i.dataset.taxcfg === "std" ? {std: i.value === "1"} : {state: i.value});
+  S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon(); i.blur(); renderTaxes();
+});
+function payCsv(){
+  const w = TAX_WHO, y = TAX_YEAR, q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const lines = [["Person","Payday","Employer","Before tax","Federal","State","After tax","Status","Source"]];
+  yearChecks(w, y).forEach(c => lines.push([nameOf(w), isoOf(c.payday), c.added ? c.label : c.pr.label, c.gross.toFixed(2),
+    c.fed.toFixed(2), c.st.toFixed(2), c.net.toFixed(2), c.done ? "paid" : "expected", c.src]));
+  download(`pay-${nameOf(w).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${y}.csv`, lines.map(r => r.map(q).join(",")).join("\n"), "text/csv");
+}
 document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("#pay button[data-cfg]");
   if(b) cfgChange(b, b.dataset.cfg);
