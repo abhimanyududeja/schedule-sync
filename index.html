@@ -2435,14 +2435,15 @@ function renderTable(){
    Each person sets how each employer pays under Pay -> Jobs and pay: every two
    weeks, every week, or on the day; one recent payday; and how many days before
    payday the pay period closes. A paid job no schedule mentions falls into a
-   plain two-weekly "Paycheck" so it still shows. */
+   plain two-weekly "Paycheck", shown only when there was work in it. */
 const DAY = 86400000;
 const dayNum = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - parseISO("2026-01-04")) / DAY);
 const cycleDays = pr => pr.cycle === "1w" ? 7 : 14;
 function payrollsOf(w){
   const list = S.pay.payrolls[w].filter(pr => pr.kinds.length);
   const covered = new Set(list.flatMap(pr => pr.kinds));
-  const loose = jobsOf(w).filter(j => !covered.has(j.k) && !isUnpaid(w, j.k) && rateOf(w, j.k)).map(j => j.k);
+  // a job taken off the list (one you've left) never gets a pay schedule made up for it
+  const loose = jobsOf(w).filter(j => !j.hide && !covered.has(j.k) && !isUnpaid(w, j.k) && rateOf(w, j.k)).map(j => j.k);
   return loose.length ? list.concat([{id:"pay", label:"Paycheck", kinds:loose, cycle:"2w", pay:"", lag:6, fed:0, state:0, over:0, extra:0, loose:true}]) : list;
 }
 /* A schedule without a payday yet pays on Fridays, counted from this week. */
@@ -2514,7 +2515,8 @@ function paychecksFor(w, lo, hi){
       const a = S.pay.actual[w][checkKey(r)];
       if(a){ r.estGross = r.gross; r.gross = a.g; r.net = a.n; r.actual = true; }
     });
-    out.push(...rows);
+    // the made-up schedule only shows fortnights with work in them, never an empty paycheck
+    out.push(...(pr.loose ? rows.filter(r => r.mins || r.actual) : rows));
   });
   return out.sort((a, b) => a.payday - b.payday || a.pr.label.localeCompare(b.pr.label));
 }
