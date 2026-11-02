@@ -129,6 +129,9 @@
   .ev:hover .grip.bot{background:linear-gradient(transparent,currentColor)}
   .ev.a{background:var(--a-soft);border-color:var(--a-line);color:var(--a-text)}
   .ev.b{background:var(--b-soft);border-color:var(--b-line);color:var(--b-text)}
+  .ev.clash{outline:1.5px dashed var(--warn);outline-offset:-1.5px}
+  .ev .cw{position:absolute;top:2px;right:3px;font-size:10px;line-height:1;color:var(--warn);pointer-events:none}
+  .clashnote{margin-bottom:10px}
   .ev.c{background:var(--c-soft);border-color:var(--c-line);color:var(--c-text)}
   .hcard.c{--who:var(--c)} .dot.c{background:var(--c)}
   .sw.c{background:var(--c-soft);border-color:var(--c-line)}
@@ -591,6 +594,7 @@
       <button class="btn ghost sm" id="clrWeek" title="Delete this week's one-off shifts">Clear week</button>
     </span>
   </div>
+  <div class="note warn clashnote" id="clashNote" style="display:none"></div>
   <div class="daystrip" id="daystrip"></div>
   <div class="card gridwrap"><div class="grid" id="grid"></div></div>
 </section>
@@ -955,6 +959,20 @@ function tiredMornings(person, iso, list = weekEvents(iso)){
       .forEach(c => out.push({n, c})));
   return out;
 }
+/* Two blocks of the same person's that overlap on the same day: two jobs at
+   once, or a shift on top of a class. Back to back (one ends as the next
+   starts) is fine. Returns each clash once, earlier block first. */
+function clashesIn(list){
+  const out = [], byDay = new Map();
+  list.forEach(e => { const k = e.person + "|" + e.day; (byDay.get(k) || byDay.set(k, []).get(k)).push(e); });
+  byDay.forEach(day => {
+    day.sort((a, b) => a.start - b.start || a.end - b.end);
+    for(let i = 0; i < day.length; i++) for(let j = i + 1; j < day.length && day[j].start < day[i].end; j++)
+      out.push({a: day[i], b: day[j], mins: Math.min(day[i].end, day[j].end) - day[j].start});
+  });
+  return out;
+}
+const blockText = e => `${e.title} ${fmt(e.start)}–${fmt(e.end)}`;
 const tiredText = ({n, c}) => `${DAYS[n.day]}: your overnight ends ${fmt(n.end)}, ${c.title} starts ${fmt(c.start)}`;
 const placeName = k => k === "other" || !k ? "Other" : (jobOf(k) || {}).label || "Job";
 const placeColor = k => {
@@ -1949,6 +1967,9 @@ function shiftImpact(cands, drop = new Set()){
   }
   if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
   if(tired.length){ cls += " bad"; bits.push(...tired.map(tiredText)); }
+  const mine = real.filter(x => !drop.has(x.id) && x.person === w && (x.week === null ? (!x.from || iso >= x.from) : x.week === iso));
+  const hits = cands.flatMap(c => mine.filter(o => o.day === c.day && o.start < c.end && c.start < o.end).map(o => `${DAYS[c.day]}: clashes with ${blockText(o)}`));
+  if(hits.length){ cls += " bad"; bits.push(...new Set(hits)); }
   return bits.length ? `<div class="${cls}">${bits.map(escapeHTML).join("<br>")}</div>` : "";
 }
 
@@ -2080,7 +2101,16 @@ function renderStrip(){
   });
 }
 
+function renderClashNote(){
+  const list = clashesIn(weekEvents(VIEW).filter(e => people().includes(e.person)))
+    .sort((x, y) => x.a.day - y.a.day || x.a.start - y.a.start);
+  const box = $("#clashNote");
+  box.style.display = list.length ? "" : "none";
+  box.innerHTML = list.length ? `<b>⚠ ${list.length} clash${list.length === 1 ? "" : "es"} this week:</b> ` + list.map(({a, b, mins}) =>
+    `${escapeHTML(nameOf(a.person))} · ${DAYS[a.day]}: ${escapeHTML(blockText(a))} overlaps ${escapeHTML(blockText(b))} by ${dur(mins)}`).join("; ") : "";
+}
 function renderGrid(){
+  renderClashNote();
   const g = $("#grid"); g.innerHTML = "";
   /* An overnight shift stretches the window to a full 24h, so scale the day to
      fit rather than letting the useful hours get pushed off screen. */
@@ -2121,10 +2151,15 @@ function renderGrid(){
     const slots = new Map();
     const lanes = shownPeople(), share = 100 / lanes.length;
     lanes.forEach(w => laneLayout(dayEvents.filter(x => x.person === w), slots));
+    const clashWith = new Map();
+    clashesIn(dayEvents).forEach(({a, b}) => {
+      (clashWith.get(a) || clashWith.set(a, []).get(a)).push(b);
+      (clashWith.get(b) || clashWith.set(b, []).get(b)).push(a);
+    });
     for(const e of dayEvents.filter(x => lanes.includes(x.person)).sort((x,y) => x.start-y.start)){
-      const tall = (e.end-e.start)*PX > 42;
+      const tall = (e.end-e.start)*PX > 42, clash = clashWith.get(e);
       const {c, n:ncols} = slots.get(e), laneL = lanes.indexOf(e.person) * share, laneW = share/ncols;
-      const n = el("div","ev " + e.person + (e.week === null ? " rep" : ""),
+      const n = el("div","ev " + e.person + (e.week === null ? " rep" : "") + (clash ? " clash" : ""),
         `<strong>${escapeHTML(e.title)}</strong><em>${fmt(e.start)}–${fmt(e.end)}</em>` +
         (tall ? `<em class="pl" style="color:${placeColor(e.kind)}">${escapeHTML(placeName(e.kind))}</em>` : ""));
       n.style.top = (e.start-lo)*PX + "px";
@@ -2138,7 +2173,9 @@ function renderGrid(){
       n.title = `${nameOf(e.person)} · ${placeName(e.kind)}${e.station ? " · " + stationLabel(e.station) : ""} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
                 (e.week === null ? (e.from ? "\nRepeats every week from " + weekDates(e.from)
                                             : "\nRepeats every week")
-                                 : "\nJust this week") + "\nClick to edit";
+                                 : "\nJust this week") +
+                (clash ? "\n⚠ Overlaps " + clash.map(blockText).join(" and ") : "") + "\nClick to edit";
+      if(clash) n.appendChild(el("b","cw","⚠"));
       n.onclick = ev => {
         if(dragMoved) return;                       // finished a drag, not a click
         if(ev.target.classList.contains("grip")) return;
