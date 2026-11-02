@@ -258,6 +258,8 @@
   .rtable th,.rtable td{padding-left:6px}
   .mtable td .mbar{display:block;height:3px;border-radius:2px;background:var(--a);opacity:.55;margin-top:6px;max-width:140px}
   .fine{font-size:11.5px;color:var(--faint);line-height:1.5;margin:12px 0 0}
+  .aside{font-size:12px;color:var(--dim);line-height:1.5;margin:12px 0 0;padding:8px 11px;border-radius:9px;
+    background:var(--panel2);border:1px solid var(--line)}
   details.added{margin-top:16px}
   .brow.wide{max-width:none}
   .addx{margin-top:10px;align-items:flex-end}
@@ -1031,7 +1033,7 @@ function normPay(p){
         kinds: [...new Set(((Array.isArray(r.kinds) && r.kinds) || []).map(key).filter(Boolean))],
         pay: iso(r.pay), lag: Math.max(0, Math.min(30, Math.floor(+r.lag || 0))),
         fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
-        ...(r.cash === true ? {cash: true} : {})});
+        ...(r.cash === true ? {cash: true} : {}), ...(r.notax === true ? {notax: true} : {})});
     });
     // paychecks typed in by hand (from a bank statement or an old payslip), for weeks the app has no shifts for
     (((p && p.extra && p.extra[w]) || [])).forEach(x => {
@@ -2532,6 +2534,7 @@ function rateRows(w){
         .map(([v, t]) => `<option value="${v}"${r.cycle === v ? " selected" : ""}>${t}</option>`).join("")}</select></span>${day ? "" :
         `<span class="grp">last payday <input type="date" ${a} data-f="pay" value="${r.pay}"></span>
          <span class="grp">covers work up to ${num("lag", r.lag, "6", "1")} days before</span>`}</span>
+      <span class="sub">${chk(`${a} data-f="notax"`, r.notax, "Leave out of the Taxes tab")}</span>
       <span class="sub">${chk(`${a} data-f="cash"`, r.cash, "Nothing taken out (cash)")}${r.cash ? "" :
         `<span class="grp">Tax ${num("fed", r.fed, "0")}% federal</span><span class="grp">+ ${num("state", r.state, "0")}% state</span>
          <span class="grp">+ ${num("extra", r.extra, "0")}% on the part over $${num("over", r.over, "0", "1")}</span>`}</span>
@@ -2742,12 +2745,12 @@ function splitHeld(w, c){
 }
 /* Every paycheck of one person's year: the app's own (from shifts, or a
    payslip typed over them) plus the ones added by hand. */
-function yearChecks(w, y){
+function yearChecks(w, y, aside = false){
   const now = Date.now();
   const app = paychecksFor(w, new Date(y, 0, 1), new Date(y, 11, 31))
-    .filter(c => (c.mins || c.actual) && c.gross > 0)
+    .filter(c => (c.mins || c.actual) && c.gross > 0 && !!c.pr.notax === aside)
     .map(c => ({...c, src: c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"}));
-  const extra = S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y))).map(({x, i}) => ({
+  const extra = aside ? [] : S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y))).map(({x, i}) => ({
     payday: parseISO(x.d), gross: x.g, net: x.n, label: x.l, idx: i, added: true, pr: {},
     state: parseISO(x.d).getTime() <= now ? "paid" : "later", src: x.e ? "bank" : "payslip"}));
   return app.concat(extra).map(c => ({...c, ...splitHeld(w, c), done: c.payday.getTime() <= now}))
@@ -2834,6 +2837,12 @@ function renderTaxes(){
       <div><span>Tax held</span><b>${money(T.so.fed + T.so.st)}</b></div>
       <div><span>Taken home</span><b>${money(T.so.net)}</b></div>
     </div>
+    ${(() => {   // pay schedules switched out of the tax figures, shown on their own
+      const aside = yearChecks(w, y, true), byPr = new Map();
+      aside.forEach(c => byPr.set(c.pr.label, (byPr.get(c.pr.label) || 0) + c.gross));
+      return byPr.size ? `<p class="aside">Not counted here: ${[...byPr].map(([l, g]) => `<b>${escapeHTML(l)}</b> ${money(g)}${thisYear ? " so far" : ""}`).join(", ")}.
+        Switched off under Pay → Jobs and pay.</p>` : "";
+    })()}
     ${bars}
     <table class="mtable rtable"><thead><tr><th></th><th>Held back</th><th>Owed</th><th>Back</th></tr></thead><tbody>
       <tr><td><b>Federal</b><span>${T.cfg.std ? "after the " + money(r.std).replace(".00", "") + " standard deduction" : "no standard deduction"}</span></td>
