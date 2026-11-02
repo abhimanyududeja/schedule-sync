@@ -2840,7 +2840,7 @@ function renderTaxes(){
     ${(() => {   // pay schedules switched out of the tax figures, shown on their own
       const aside = yearChecks(w, y, true), byPr = new Map();
       aside.forEach(c => byPr.set(c.pr.label, (byPr.get(c.pr.label) || 0) + c.gross));
-      return byPr.size ? `<p class="aside">Not counted here: ${[...byPr].map(([l, g]) => `<b>${escapeHTML(l)}</b> ${money(g)}${thisYear ? " so far" : ""}`).join(", ")}.
+      return byPr.size ? `<p class="aside">Left out of these figures: ${[...byPr].map(([l, g]) => `<b>${escapeHTML(l)}</b> (${money(g)} of shifts in the calendar)`).join(", ")}.
         Switched off under Pay → Jobs and pay.</p>` : "";
     })()}
     ${bars}
