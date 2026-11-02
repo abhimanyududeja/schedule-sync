@@ -1050,6 +1050,9 @@ function normPay(p){
   ((p && Array.isArray(p.breaks) && p.breaks) || []).forEach(b => {
     if(Array.isArray(b) && iso(b[0]) && iso(b[1]) && b[0] <= b[1]) out.breaks.push([b[0], b[1]]);
   });
+  /* Settings from a newer copy of the app travel along untouched, so a device
+     that hasn't reloaded yet can't wipe what it doesn't understand. */
+  if(p && typeof p === "object") for(const k of Object.keys(p)) if(!(k in out)) out[k] = JSON.parse(JSON.stringify(p[k]));
   return out;
 }
 const newDeviceId = () => Math.random().toString(36).slice(2,8);
@@ -1228,7 +1231,8 @@ function mergeStates(local, remote){
     });
     if(!pay.breaks.length && other.breaks.length) pay.breaks = other.breaks;
   }
-  return Object.assign({}, local, {
+  // anything only the other side knows about (a newer copy's fields) is kept
+  return Object.assign({}, remote, local, {
     pay, pm:payer.pm||0,
     events, tomb:[...tomb].map(([k,t]) => ({k,t})), feeds:[...feeds.values()],
     sm:newer.sm||0, nameA:newer.nameA, nameB:newer.nameB, crew:newer.crew || {},
