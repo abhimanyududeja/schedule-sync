@@ -1604,7 +1604,7 @@ function intersect(p, q){
 /* A repeating block can carry a start week, so a job that began partway
    through the year does not appear in every week before it existed. */
 const weekEvents = (iso) => S.events.filter(e =>
-  e.week === null ? (!e.from || iso >= e.from) : e.week === iso);
+  e.week === null ? (!e.from || iso >= e.from) && (!e.to || iso <= e.to) : e.week === iso);
 const busyOf = (who,d) => merge(weekEvents(VIEW).filter(e => e.person===who && e.day===d).map(e => [e.start,e.end]));
 /* A blank or inverted waking window would silently zero out the whole week,
    so fall back to the full day and let badWake() surface the problem. */
@@ -1803,6 +1803,7 @@ function openEdit(e, isNew){
         <option value="once">Just this week</option>
         <option value="every">Every week</option></select></div>
       <div class="f"><label>Starting</label><select class="eFrom"></select></div>
+      <div class="f"><label>Until</label><select class="eTo"></select></div>
     </div>
     <div class="eImpact"></div>
     <div class="row">
@@ -1844,7 +1845,7 @@ function openEdit(e, isNew){
   const twins = isNew ? [] : S.events.filter(o =>
     o.id !== e.id && !o.src && o.person === e.person && o.kind === e.kind &&
     o.title === e.title && o.start === e.start && o.end === e.end &&
-    (o.week ?? null) === (e.week ?? null) && (o.from || "") === (e.from || "") &&
+    (o.week ?? null) === (e.week ?? null) && (o.from || "") === (e.from || "") && (o.to || "") === (e.to || "") &&
     (o.station || "") === (e.station || ""));
   const twinByDay = new Map(twins.map(o => [o.day, o]));
   const litDays = () => [...wrap.querySelectorAll(".eDays button.on")].map(b => +b.dataset.d);
@@ -1865,19 +1866,20 @@ function openEdit(e, isNew){
   q("eStart").value = toHHMM(e.start);
   q("eEnd").value = toHHMM(e.end);
   q("eRep").value = e.week === null ? "every" : "once";
-  const fromSel = q("eFrom");
-  const fill = () => {
-    fromSel.innerHTML = "";
-    const opts = [["", "always (every week)"]];
-    for(let i = -8; i <= 8; i++){
-      const iso = isoOf(addDays(parseISO(thisWeekStart()), i*7));
-      opts.push([iso, weekTitle(iso) + ", " + weekDates(iso)]);
-    }
-    opts.forEach(([v,t]) => { const o = el("option"); o.value = v; o.textContent = t;
-      if((e.from || "") === v) o.selected = true; fromSel.appendChild(o); });
+  const fromSel = q("eFrom"), toSel = q("eTo");
+  /* weeks to pick from: a few months either side, plus whatever the block already uses */
+  const fill = (sel, cur, none) => {
+    sel.innerHTML = "";
+    const weeks = new Set();
+    for(let i = -16; i <= 30; i++) weeks.add(isoOf(addDays(parseISO(thisWeekStart()), i*7)));
+    if(cur) weeks.add(cur);
+    [["", none], ...[...weeks].sort().map(iso => [iso, weekTitle(iso) + ", " + weekDates(iso)])]
+      .forEach(([v,t]) => { const o = el("option"); o.value = v; o.textContent = t;
+        if((cur || "") === v) o.selected = true; sel.appendChild(o); });
   };
-  fill();
-  const syncFrom = () => fromSel.closest(".f").style.display = q("eRep").value === "every" ? "" : "none";
+  fill(fromSel, e.from, "always (every week)");
+  fill(toSel, e.to, "no end");
+  const syncFrom = () => [fromSel, toSel].forEach(x => x.closest(".f").style.display = q("eRep").value === "every" ? "" : "none");
   q("eRep").addEventListener("change", syncFrom); syncFrom();
   q("eWho").onchange = () => fillPlaces(q("eKind"), q("eWho").value);
   setTimeout(() => q("eTitle").focus(), 30);
@@ -1902,6 +1904,8 @@ function openEdit(e, isNew){
     const s = toMin(q("eStart").value);
     const en = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
     if(!(en > s)) return alert("The end time has to be after the start time.");
+    if(q("eRep").value === "every" && q("eFrom").value && q("eTo").value && q("eTo").value < q("eFrom").value)
+      return alert("Until has to be the same week as Starting, or later.");
     const place = q("eKind").value;
     const station = hasStations(place) ? q("eStation").value : "";
     const hadStation = !!e.station;
@@ -1918,8 +1922,12 @@ function openEdit(e, isNew){
     e.day    = days.includes(e.day) ? e.day : (days.find(d => !twinByDay.has(d)) ?? days[0]);
     e.start  = s; e.end = en;
     e.week   = q("eRep").value === "every" ? null : (e.week || VIEW);
-    if(e.week === null){ const f = q("eFrom").value; if(f) e.from = f; else delete e.from; }
-    else delete e.from;
+    if(e.week === null){
+      const f = q("eFrom").value, t = q("eTo").value;
+      if(f) e.from = f; else delete e.from;
+      if(t) e.to = t; else delete e.to;
+    }
+    else { delete e.from; delete e.to; }
     touch(e);
     if(isNew) S.events.push(e);
 
@@ -1930,6 +1938,7 @@ function openEdit(e, isNew){
                             day: d, start: e.start, end: e.end, week: e.week });
       if(e.station) copy.station = e.station; else delete copy.station;
       if(e.from) copy.from = e.from; else delete copy.from;
+      if(e.to) copy.to = e.to; else delete copy.to;
       touch(copy);
       if(!twin) S.events.push(copy);
     });
@@ -2171,8 +2180,7 @@ function renderGrid(){
       n.appendChild(el("i","grip bot"));
       n.dataset.id = e.id;
       n.title = `${nameOf(e.person)} · ${placeName(e.kind)}${e.station ? " · " + stationLabel(e.station) : ""} · ${e.title} · ${fmt(e.start)}–${fmt(e.end)}` +
-                (e.week === null ? (e.from ? "\nRepeats every week from " + weekDates(e.from)
-                                            : "\nRepeats every week")
+                (e.week === null ? "\nRepeats every week" + (e.from ? " from " + weekDates(e.from) : "") + (e.to ? " until " + weekDates(e.to) : "")
                                  : "\nJust this week") +
                 (clash ? "\n⚠ Overlaps " + clash.map(blockText).join(" and ") : "") + "\nClick to edit";
       if(clash) n.appendChild(el("b","cw","⚠"));
@@ -2415,7 +2423,7 @@ function renderTable(){
   }
   for(const e of rows){
     const tr = el("tr");
-    const when = e.week === null ? `<span class="tag rep">every week</span>`
+    const when = e.week === null ? `<span class="tag rep">every week${e.to ? " · until " + addDays(parseISO(e.to), e.day).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : ""}</span>`
       : `<span class="tag">${addDays(parseISO(e.week), e.day).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>`;
     tr.innerHTML = `<td><span class="pill"><span class="dot ${e.person}"></span>${escapeHTML(nameOf(e.person))}</span></td>` +
       `<td>${escapeHTML(e.title)}</td>` +
