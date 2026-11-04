@@ -1031,6 +1031,9 @@ function normPay(p){
   const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
   const pct = v => { const x = +v; return x > 0 && x < 100 ? Math.round(x * 100) / 100 : 0; };
   const cents = v => { const x = +v; return x >= 0 && x < 100000 ? Math.round(x * 100) / 100 : NaN; };
+  // the federal and state lines off a payslip, kept only when they fit inside what was taken out
+  const heldOf = (v, g, nn) => { const f = cents(v.f), st = cents(v.s);
+    return f >= 0 && st >= 0 && f + st <= g - nn + .005 ? {f, s: st} : {}; };
   PIDS.forEach(w => {
     ["rate","night","tip"].forEach(f =>
       Object.entries((p && p[f] && p[f][w]) || {}).forEach(([k,v]) => { if(n(v)) out[f][w][k] = n(v); }));
@@ -1040,7 +1043,7 @@ function normPay(p){
     // what a payslip actually said, keyed "payroll:payday"
     Object.entries((p && p.actual && p.actual[w]) || {}).forEach(([k, v]) => {
       const g = cents(v && v.g), nn = cents(v && v.n);
-      if(/^[a-z0-9_-]+:\d{4}-\d{2}-\d{2}$/.test(k) && g > 0 && nn > 0 && nn <= g) out.actual[w][k] = {g, n: nn};
+      if(/^[a-z0-9_-]+:\d{4}-\d{2}-\d{2}$/.test(k) && g > 0 && nn > 0 && nn <= g) out.actual[w][k] = {g, n: nn, ...heldOf(v, g, nn)};
     });
     const seen = new Set();
     (((p && p.jobs && p.jobs[w]) || [])).forEach(j => {
@@ -1061,12 +1064,13 @@ function normPay(p){
         kinds: [...new Set(((Array.isArray(r.kinds) && r.kinds) || []).map(key).filter(Boolean))],
         pay: iso(r.pay), lag: Math.max(0, Math.min(30, Math.floor(+r.lag || 0))),
         fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
+        sover: n(r.sover), oth: pct(r.oth),
         ...(r.cash === true ? {cash: true} : {}), ...(r.notax === true ? {notax: true} : {})});
     });
     // paychecks typed in by hand (from a bank statement or an old payslip), for weeks the app has no shifts for
     (((p && p.extra && p.extra[w]) || [])).forEach(x => {
       const g = cents(x && x.g), nn = cents(x && x.n);
-      if(x && iso(x.d) && g > 0 && nn >= 0 && nn <= g) out.extra[w].push({d: x.d, l: str(x.l, 30) || "Paycheck", g, n: nn, ...(x.e === true ? {e: true} : {})});
+      if(x && iso(x.d) && g > 0 && nn >= 0 && nn <= g) out.extra[w].push({d: x.d, l: str(x.l, 30) || "Paycheck", g, n: nn, ...heldOf(x, g, nn), ...(x.e === true ? {e: true} : {})});
     });
     out.extra[w].sort((a, b) => a.d.localeCompare(b.d));
     const tc = p && p.taxcfg && p.taxcfg[w];
@@ -2504,11 +2508,18 @@ const span = (a, b) => a.getMonth() === b.getMonth()
    An employer only appears if this person works there at all. */
 /* What comes off a paycheck: a federal %, with an optional extra % on the part
    of the check over some amount (how bracketed withholding shows up on a
-   payslip), plus a state %. Copy them off a payslip and they match it. */
-function withheld(w, pr, gross){
-  if(pr.cash || gross <= 0) return 0;
+   payslip), a state % (on the part over an allowance, if the payslip has one)
+   and any other % such as a paid-leave contribution. Copy them off a payslip
+   and they match it. */
+function heldParts(pr, gross){
+  if(pr.cash || gross <= 0) return {fed:0, st:0, oth:0};
   const c = x => Math.round(x * 100) / 100;
-  return c(gross * pr.fed / 100 + (pr.over && pr.extra ? Math.max(0, gross - pr.over) * pr.extra / 100 : 0)) + c(gross * pr.state / 100);
+  return {fed: c(gross * (pr.fed || 0) / 100 + (pr.over && pr.extra ? Math.max(0, gross - pr.over) * pr.extra / 100 : 0)),
+          st: c(Math.max(0, gross - (pr.sover || 0)) * (pr.state || 0) / 100), oth: c(gross * (pr.oth || 0) / 100)};
+}
+function withheld(w, pr, gross){
+  const h = heldParts(pr, gross);
+  return h.fed + h.st + h.oth;
 }
 const taxNote = (w, pr) => pr.cash ? "cash, nothing taken out" : pr.fed || pr.state ? "after tax, estimated" : "before tax";
 const checkKey = c => `${c.pr.id}:${isoOf(c.payday)}`;
@@ -2531,7 +2542,7 @@ function paychecksFor(w, lo, hi){
     }
     rows.forEach(r => {
       const a = S.pay.actual[w][checkKey(r)];
-      if(a){ r.estGross = r.gross; r.gross = a.g; r.net = a.n; r.actual = true; }
+      if(a){ r.estGross = r.gross; r.gross = a.g; r.net = a.n; r.actual = true; if(a.f != null){ r.f = a.f; r.s = a.s; } }
     });
     // the made-up schedule only shows fortnights with work in them, never an empty paycheck
     out.push(...(pr.loose ? rows.filter(r => r.mins || r.actual) : rows));
@@ -2592,9 +2603,10 @@ function rateRows(w){
         `<span class="grp">last payday <input type="date" ${a} data-f="pay" value="${r.pay}"></span>
          <span class="grp">covers work up to ${num("lag", r.lag, "6", "1")} days before</span>`}</span>
       <span class="sub">${chk(`${a} data-f="notax"`, r.notax, "Leave out of the Taxes tab")}</span>
-      <span class="sub">${chk(`${a} data-f="cash"`, r.cash, "Nothing taken out (cash)")}${r.cash ? "" :
-        `<span class="grp">Tax ${num("fed", r.fed, "0")}% federal</span><span class="grp">+ ${num("state", r.state, "0")}% state</span>
-         <span class="grp">+ ${num("extra", r.extra, "0")}% on the part over $${num("over", r.over, "0", "1")}</span>`}</span>
+      <span class="sub">${chk(`${a} data-f="cash"`, r.cash, "Nothing taken out (cash)")}</span>
+      ${r.cash ? "" : `<span class="sub"><span class="grp">Federal ${num("fed", r.fed, "0")}%</span><span class="grp">+ ${num("extra", r.extra, "0")}% on the part over $${num("over", r.over, "0", "1")}</span></span>
+      <span class="sub"><span class="grp">State ${num("state", r.state, "0")}% on the part over $${num("sover", r.sover, "0")}</span></span>
+      <span class="sub"><span class="grp">Other ${num("oth", r.oth, "0")}% for paid leave or retirement</span></span>`}
     </div>`;
   }).join("");
   const m = minOf(w) || {};
@@ -2717,6 +2729,8 @@ function renderPay(force){
       <div class="slipform" data-w="${w}" data-key="${checkKey(c)}">
         <label>Before tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sg" value="${c.gross.toFixed(2)}"></label>
         <label>After tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sn" value="${c.actual ? c.net.toFixed(2) : ""}" placeholder="what landed"></label>
+        <label>Federal tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sf" value="${c.f != null ? c.f.toFixed(2) : ""}" placeholder="optional"></label>
+        <label>State tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="ss" value="${c.s != null ? c.s.toFixed(2) : ""}" placeholder="optional"></label>
         <button type="button" class="btn sm slipsave">Save</button>
         ${c.actual ? `<button type="button" class="btn ghost sm slipclear">Use estimate</button>` : ""}
         <button type="button" class="btn ghost sm slipx">Cancel</button>
@@ -2747,6 +2761,15 @@ function renderPay(force){
 }
 /* Typing a payslip over a paid paycheck's estimate. */
 let SLIP = null;
+/* The federal and state tax lines of a payslip, when both are filled in:
+   {} when they're left empty, null (after saying why) when they don't add up. */
+function heldLines(form, g, n){
+  const fv = form.querySelector(".sf").value, sv = form.querySelector(".ss").value;
+  if(fv === "" && sv === "") return {};
+  const f = +fv || 0, st = +sv || 0;
+  if(f < 0 || st < 0 || f + st > g - n + .005){ alert("Federal and state tax together can't be more than the difference between before and after tax."); return null; }
+  return {f, s: st};
+}
 document.addEventListener("click", ev => {
   const t = ev.target.closest && ev.target.closest("[data-slip], .slipsave, .slipclear, .slipx");
   if(!t) return;
@@ -2756,7 +2779,8 @@ document.addEventListener("click", ev => {
   if(t.classList.contains("slipsave")){
     const g = +form.querySelector(".sg").value, n = +form.querySelector(".sn").value;
     if(!(g > 0 && n > 0 && n <= g)) return alert("Type both amounts from the payslip. After tax can't be more than before tax.");
-    const raw = JSON.parse(JSON.stringify(S.pay)); raw.actual[w][key] = {g, n};
+    const held = heldLines(form, g, n); if(!held) return;
+    const raw = JSON.parse(JSON.stringify(S.pay)); raw.actual[w][key] = {g, n, ...held};
     S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon();
   } else if(t.classList.contains("slipclear")){
     const raw = JSON.parse(JSON.stringify(S.pay)); delete raw.actual[w][key];
@@ -2788,17 +2812,19 @@ function maTax(g){
   const t = MA.rate * Math.max(0, g - MA.exempt);
   return g <= MA.creditTo ? Math.min(t, MA.credit * (g - MA.line)) : t;
 }
-/* How a paycheck's withholding splits into federal and state. The payroll's
-   own rates say how; a hand-typed paycheck takes the state's flat 5% and puts
-   the rest down to federal. */
+/* How a paycheck's withholding splits into federal, state and other
+   deductions (paid leave, retirement), which aren't income tax and don't come
+   back. Federal and state typed off a payslip are used as they are; otherwise
+   the payroll's own rates say how, and a hand-typed paycheck takes the state's
+   flat 5% and puts the rest down to federal. */
 function splitHeld(w, c){
   const held = Math.max(0, c.gross - c.net), pr = c.pr || {};
-  if(pr.cash || !held) return {fed:0, st:0};
-  const f = c.gross * (pr.fed || 0) / 100 + (pr.over && pr.extra ? Math.max(0, c.gross - pr.over) * pr.extra / 100 : 0);
-  const st = c.gross * (pr.state || 0) / 100;
-  if(f + st > 0) return {fed: held * f / (f + st), st: held * st / (f + st)};
+  if(c.f != null) return {fed: c.f, st: c.s, oth: Math.max(0, held - c.f - c.s)};
+  if(pr.cash || !held) return {fed:0, st:0, oth:0};
+  const h = heldParts(pr, c.gross), all = h.fed + h.st + h.oth;
+  if(all > 0) return {fed: held * h.fed / all, st: held * h.st / all, oth: held * h.oth / all};
   const s2 = taxcfgOf(w).state === "MA" ? Math.min(held, c.gross * MA.rate) : 0;
-  return {fed: held - s2, st: s2};
+  return {fed: held - s2, st: s2, oth: 0};
 }
 /* Every paycheck of one person's year: the app's own (from shifts, or a
    payslip typed over them) plus the ones added by hand. */
@@ -2808,7 +2834,7 @@ function yearChecks(w, y, aside = false){
     .filter(c => (c.mins || c.actual) && c.gross > 0 && !!c.pr.notax === aside)
     .map(c => ({...c, src: c.actual ? "payslip" : c.pr.cash ? "cash" : "estimate"}));
   const extra = aside ? [] : S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y))).map(({x, i}) => ({
-    payday: parseISO(x.d), gross: x.g, net: x.n, label: x.l, idx: i, added: true, pr: {},
+    payday: parseISO(x.d), gross: x.g, net: x.n, ...(x.f != null ? {f: x.f, s: x.s} : {}), label: x.l, idx: i, added: true, pr: {},
     state: parseISO(x.d).getTime() <= now ? "paid" : "later", src: x.e ? "bank" : "payslip"}));
   return app.concat(extra).map(c => ({...c, ...splitHeld(w, c), done: c.payday.getTime() <= now}))
     .sort((a, b) => a.payday - b.payday);
@@ -2876,7 +2902,7 @@ function renderTaxes(){
         <i class="mbar" style="width:${m.gross / peak * 100}%"></i></td>
       <td>${money(m.gross)}</td><td class="wide">${m.fed > .004 ? "−" + money(m.fed) : "–"}</td><td class="wide">${m.st > .004 ? "−" + money(m.st) : "–"}</td>
       <td class="narrow">${m.fed + m.st > .004 ? "−" + money(m.fed + m.st) : "–"}</td><td><b>${money(m.net)}</b></td></tr>`).join("");
-  const tot = T.checks.reduce((t, c) => ({gross: t.gross + c.gross, fed: t.fed + c.fed, st: t.st + c.st, net: t.net + c.net}), {gross:0, fed:0, st:0, net:0});
+  const tot = T.checks.reduce((t, c) => ({gross: t.gross + c.gross, fed: t.fed + c.fed, st: t.st + c.st, net: t.net + c.net, oth: t.oth + c.oth}), {gross:0, fed:0, st:0, net:0, oth:0});
 
   const added = S.pay.extra[w].map((x, i) => ({x, i})).filter(({x}) => x.d.startsWith(String(y)));
   host.innerHTML = `
@@ -2914,7 +2940,8 @@ function renderTaxes(){
     <h3>Month by month<span class="hsub">${y}</span></h3>
     ${rows ? `<table class="mtable"><thead><tr><th>Month</th><th>Earned</th><th class="wide">Federal</th><th class="wide">State</th><th class="narrow">Tax</th><th>Take-home</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b><span>${T.checks.length} paychecks</span></td><td>${money(tot.gross)}</td>
-        <td class="wide">−${money(tot.fed)}</td><td class="wide">−${money(tot.st)}</td><td class="narrow">−${money(tot.fed + tot.st)}</td><td><b>${money(tot.net)}</b></td></tr></tfoot></table>`
+        <td class="wide">−${money(tot.fed)}</td><td class="wide">−${money(tot.st)}</td><td class="narrow">−${money(tot.fed + tot.st)}</td><td><b>${money(tot.net)}</b></td></tr></tfoot></table>
+      ${tot.oth > .004 ? `<p class="fine">Take-home is also ${money(tot.oth)} short for other deductions, such as paid-leave or retirement contributions. They aren't income tax, so they don't come back with a refund.</p>` : ""}`
       : `<div class="none">No paychecks in ${y} yet.</div>`}
     <details class="rates added"${TAX_ADD ? " open" : ""}><summary>Paychecks the app has no shifts for${added.length ? ` (${added.length})` : ""}</summary>
       <p class="fine">Pay from before you started using the app, or from a job you don't track here. Copy it from a payslip, or from a bank statement (then tick "before tax is a guess").</p>
@@ -2926,6 +2953,8 @@ function renderTaxes(){
         <div class="f"><label>From</label><input class="xl" maxlength="30" placeholder="Employer"></div>
         <div class="f"><label>Before tax</label><input class="xg" type="number" inputmode="decimal" min="0" step="0.01"></div>
         <div class="f"><label>After tax</label><input class="xn" type="number" inputmode="decimal" min="0" step="0.01"></div>
+        <div class="f"><label>Federal tax</label><input class="sf" type="number" inputmode="decimal" min="0" step="0.01" placeholder="optional"></div>
+        <div class="f"><label>State tax</label><input class="ss" type="number" inputmode="decimal" min="0" step="0.01" placeholder="optional"></div>
         <label class="unp"><input type="checkbox" class="xe"> before tax is a guess</label>
         <button type="button" class="btn ghost" id="xAdd">Add</button>
       </div>
@@ -2964,7 +2993,8 @@ document.addEventListener("click", ev => {
     const f = t.closest(".addx"), d = f.querySelector(".xd").value, l = f.querySelector(".xl").value.trim();
     const g = +f.querySelector(".xg").value, n = +f.querySelector(".xn").value;
     if(!d || !(g > 0) || !(n >= 0) || n > g) return alert("Add the date, and both amounts. After tax can't be more than before tax.");
-    raw.extra[TAX_WHO].push({d, l: l || "Paycheck", g, n, ...(f.querySelector(".xe").checked ? {e: true} : {})});
+    const held = heldLines(f, g, n); if(!held) return;
+    raw.extra[TAX_WHO].push({d, l: l || "Paycheck", g, n, ...held, ...(f.querySelector(".xe").checked ? {e: true} : {})});
     TAX_ADD = true;
   }
   S.pay = normPay(raw); S.pm = Date.now(); save(); syncSoon(); renderTaxes();
@@ -2978,9 +3008,9 @@ document.addEventListener("change", ev => {
 });
 function payCsv(){
   const w = TAX_WHO, y = TAX_YEAR, q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
-  const lines = [["Person","Payday","Employer","Before tax","Federal","State","After tax","Status","Source"]];
+  const lines = [["Person","Payday","Employer","Before tax","Federal","State","Other deductions","After tax","Status","Source"]];
   yearChecks(w, y).forEach(c => lines.push([nameOf(w), isoOf(c.payday), c.added ? c.label : c.pr.label, c.gross.toFixed(2),
-    c.fed.toFixed(2), c.st.toFixed(2), c.net.toFixed(2), c.done ? "paid" : "expected", c.src]));
+    c.fed.toFixed(2), c.st.toFixed(2), c.oth.toFixed(2), c.net.toFixed(2), c.done ? "paid" : "expected", c.src]));
   download(`pay-${nameOf(w).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${y}.csv`, lines.map(r => r.map(q).join(",")).join("\n"), "text/csv");
 }
 document.addEventListener("click", ev => {
