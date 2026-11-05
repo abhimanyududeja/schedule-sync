@@ -69,7 +69,9 @@
   .topbar{position:sticky;top:0;z-index:60;background:var(--panel);box-shadow:var(--shadow);
     border-bottom:1px solid var(--line)}
   .bar{display:flex;align-items:center;gap:14px;padding:8px 20px;min-height:46px}
-  .brand{font-weight:650;letter-spacing:-.2px;font-size:14px;white-space:nowrap;background:none;border:0;padding:0;color:inherit;font-family:inherit;cursor:pointer}
+  .brand{font-weight:650;letter-spacing:-.2px;font-size:14px;white-space:nowrap;background:none;border:0;padding:0;color:inherit;font-family:inherit;cursor:pointer;
+    display:flex;align-items:center;gap:7px}
+  .brandimg{width:22px;height:22px;border-radius:6px;flex:none}
   .wknav{display:flex;align-items:center;gap:8px;min-width:0}
   .wklabel{line-height:1.2;min-width:0;white-space:nowrap}
   .wklabel span{font-weight:600;font-size:13px}
@@ -319,6 +321,11 @@
     border-radius:8px;color:var(--text);font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
   .slipform input::-webkit-outer-spin-button,.slipform input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .slipform input:focus{outline:none;border-color:var(--a)}
+  .payask .note{margin-bottom:12px;padding:12px 14px;position:relative}
+  .payask .pahead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;color:var(--dim);font-size:13px;padding-right:30px}
+  .payask .pahead b{font-size:14px}
+  .payask .slipform{padding:10px 0 0}
+  .payask .x{position:absolute;top:8px;right:8px}
   .refund{display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px 14px;border-radius:9px;
     background:var(--free-soft);border:1px solid var(--free-line)}
   .refund div{flex:none}
@@ -405,7 +412,7 @@
   @media (max-width:768px){
     main{padding:12px}
     .bar{padding:7px 12px;gap:10px}
-    .brand{display:none}
+    .brandtxt{display:none}
     nav.tabs{padding:6px 12px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
     nav.tabs::-webkit-scrollbar{display:none}
     nav.tabs button{white-space:nowrap;padding:10px 11px;font-size:13px}
@@ -430,6 +437,10 @@
     .mtable .mbar{display:none}
     .mfoot{flex-direction:column;align-items:flex-start}
     .slipform input{font-size:16px}
+    .payask .slipform{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .payask .slipform label{flex-direction:column;align-items:stretch;gap:4px}
+    .payask .slipform .pre{display:none}
+    .payask .slipform input{width:100%;text-align:left}
     .hcard.months h3{flex-wrap:wrap}
     .btn{padding:12px 14px}
     .legend{font-size:11.5px;gap:8px 12px}
@@ -460,6 +471,8 @@
   .note.warn{border-color:#ffb45c66;background:#ffb45c12;color:var(--warn)}
   .note b{color:var(--text)}
   .note.warn b{color:var(--warn)}
+  .updnote{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:60;display:flex;gap:12px;align-items:center;
+    box-shadow:var(--shadow-lg);width:max-content;max-width:calc(100% - 32px)}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
@@ -539,9 +552,11 @@
 </head>
 <body>
 
+<div class="note updnote" id="updNote" style="display:none">There's a newer version of Schedule Sync.
+  <button type="button" class="btn sm" onclick="save(); location.reload()">Reload now</button></div>
 <div class="topbar">
 <div class="bar">
-  <button type="button" class="brand" id="homeBtn" title="Back to this week">Schedule&nbsp;Sync</button>
+  <button type="button" class="brand" id="homeBtn" title="Back to this week"><img src="icon.svg" alt="" class="brandimg"><span class="brandtxt">Schedule&nbsp;Sync</span></button>
   <div class="wknav">
     <button class="nav" id="prevW" title="Previous week">‹</button>
     <button class="nav" id="nextW" title="Next week">›</button>
@@ -572,6 +587,7 @@
 
 <!-- ============ WEEK ============ -->
 <section class="view on" id="v-week">
+  <div class="payask" id="payAskWeek"></div>
   <details class="card addcard" id="addCard" open>
     <summary>Add a block</summary>
     <div class="row">
@@ -636,6 +652,7 @@
 
 <!-- ============ PAY ============ -->
 <section class="view" id="v-pay">
+  <div class="payask" id="payAskPay"></div>
   <div class="note" id="payNote"></div>
   <div class="hours" id="pay"></div>
   <button type="button" class="note tolink" data-goto="taxes">Month by month, tax held back and your estimated refund are under <b>Taxes →</b></button>
@@ -807,6 +824,11 @@
     </div>
   </div>
   <div class="card">
+    <h2>On your home screen</h2>
+    <p class="hint" id="installHint" style="margin:-4px 0 12px"></p>
+    <button class="btn" id="installBtn" style="display:none">Install Schedule Sync</button>
+  </div>
+  <div class="card">
     <h2>Danger zone</h2>
     <div class="row">
       <span id="clrPeople" style="display:contents"></span>
@@ -821,6 +843,10 @@
 "use strict";
 /* ================= state ================= */
 const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
+/* Which copy of the app this is. Bump it with every release. Each push stamps
+   it on the shared calendar, and a tab still running an older copy reloads
+   itself instead of syncing, so it can never write data back in an older shape. */
+const APP_V = 2026110501;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -1030,6 +1056,9 @@ function normPay(p){
   const str = (v, n = 40) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
   const key = v => /^[a-z0-9_-]{1,24}$/.test(v) ? v : "";
   const pct = v => { const x = +v; return x > 0 && x < 100 ? Math.round(x * 100) / 100 : 0; };
+  // simple fields this copy doesn't know about yet (a newer copy added them) are kept as they are
+  const later = (o, known) => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !known.includes(k) && /^[a-z][a-zA-Z0-9]{0,15}$/.test(k) &&
+    (typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length <= 60))));
   const cents = v => { const x = +v; return x >= 0 && x < 100000 ? Math.round(x * 100) / 100 : NaN; };
   // the federal and state lines off a payslip, kept only when they fit inside what was taken out
   const heldOf = (v, g, nn) => { const f = cents(v.f), st = cents(v.s);
@@ -1043,14 +1072,14 @@ function normPay(p){
     // what a payslip actually said, keyed "payroll:payday"
     Object.entries((p && p.actual && p.actual[w]) || {}).forEach(([k, v]) => {
       const g = cents(v && v.g), nn = cents(v && v.n);
-      if(/^[a-z0-9_-]+:\d{4}-\d{2}-\d{2}$/.test(k) && g > 0 && nn > 0 && nn <= g) out.actual[w][k] = {g, n: nn, ...heldOf(v, g, nn)};
+      if(/^[a-z0-9_-]+:\d{4}-\d{2}-\d{2}$/.test(k) && g > 0 && nn > 0 && nn <= g) out.actual[w][k] = {...later(v, ["g","n","f","s"]), g, n: nn, ...heldOf(v, g, nn)};
     });
     const seen = new Set();
     (((p && p.jobs && p.jobs[w]) || [])).forEach(j => {
       const k = key(j && j.k);
       if(!k || k === "other" || seen.has(k)) return;
       seen.add(k);
-      out.jobs[w].push({k, label: str(j.label, 30) || "Job", group: GROUPS.some(([g]) => g === j.group) ? j.group : "other",
+      out.jobs[w].push({...later(j, ["k","label","group","c","brk","night","tips","st","hide"]), k, label: str(j.label, 30) || "Job", group: GROUPS.some(([g]) => g === j.group) ? j.group : "other",
         c: Math.abs(Math.floor(+j.c || 0)) % PALETTE.length,
         ...["brk","night","tips","st","hide"].reduce((o, f) => (j[f] === true && (o[f] = true), o), {})});
     });
@@ -1060,7 +1089,8 @@ function normPay(p){
       if(!id || ids.has(id)) return;
       ids.add(id);
       const cycle = ["2w","1w","day"].includes(r.cycle) ? r.cycle : "2w";
-      out.payrolls[w].push({id, label: str(r.label, 30) || "Paycheck", cycle,
+      out.payrolls[w].push({...later(r, ["id","label","cycle","kinds","pay","lag","fed","state","over","extra","sover","oth","cash","notax"]),
+        id, label: str(r.label, 30) || "Paycheck", cycle,
         kinds: [...new Set(((Array.isArray(r.kinds) && r.kinds) || []).map(key).filter(Boolean))],
         pay: iso(r.pay), lag: Math.max(0, Math.min(30, Math.floor(+r.lag || 0))),
         fed: pct(r.fed), state: pct(r.state), over: n(r.over) || Math.min(99999, Math.max(0, Math.round(+r.over || 0))), extra: pct(r.extra),
@@ -1070,7 +1100,7 @@ function normPay(p){
     // paychecks typed in by hand (from a bank statement or an old payslip), for weeks the app has no shifts for
     (((p && p.extra && p.extra[w]) || [])).forEach(x => {
       const g = cents(x && x.g), nn = cents(x && x.n);
-      if(x && iso(x.d) && g > 0 && nn >= 0 && nn <= g) out.extra[w].push({d: x.d, l: str(x.l, 30) || "Paycheck", g, n: nn, ...heldOf(x, g, nn), ...(x.e === true ? {e: true} : {})});
+      if(x && iso(x.d) && g > 0 && nn >= 0 && nn <= g) out.extra[w].push({...later(x, ["d","l","g","n","f","s","e"]), d: x.d, l: str(x.l, 30) || "Paycheck", g, n: nn, ...heldOf(x, g, nn), ...(x.e === true ? {e: true} : {})});
     });
     out.extra[w].sort((a, b) => a.d.localeCompare(b.d));
     const tc = p && p.taxcfg && p.taxcfg[w];
@@ -1436,9 +1466,29 @@ async function syncPush(state){
     body:JSON.stringify([{id:SYNC.room, data:state, updated_at:new Date().toISOString()}])});
   if(!r.ok) throw new Error("write failed (" + r.status + ")");
 }
-let seenStamp = null, dirty = false;
+let seenStamp = null, dirty = false, OUTDATED = false;
+/* A newer copy is out there: stop syncing, and reload as soon as nobody is
+   in the middle of typing something. */
+function outdated(){
+  if(OUTDATED) return;
+  OUTDATED = true; clearInterval(syncTimer); clearTimeout(pushTimer);
+  const n = $("#updNote"); n.style.display = "";
+  const go = () => {
+    const a = document.activeElement;
+    if(document.querySelector("dialog[open]") || (a && a.matches("input, textarea"))) return;
+    save(); location.reload();
+  };
+  go(); setInterval(go, 3000);
+}
+async function checkForUpdate(){
+  if(OUTDATED || !navigator.onLine) return;
+  try{
+    const m = (await (await fetch(location.pathname, {cache:"no-store"})).text()).match(/const APP_V = (\d+);/);
+    if(m && +m[1] > APP_V) outdated();
+  }catch(e){}
+}
 async function syncNow(quiet){
-  if(!SYNC.on || syncBusy) return;
+  if(!SYNC.on || syncBusy || OUTDATED) return;
   if(!SYNC.url || !SYNC.key || !SYNC.room) return;
   syncBusy = true;
   try{
@@ -1449,6 +1499,7 @@ async function syncNow(quiet){
       return;
     }
     const remote = stamp ? await syncPull() : null;
+    if(remote && +remote.appv > APP_V) return outdated();   // written by a newer copy: don't merge or push
     const before = syncSig(S);
     let theirs = null;
     if(remote){
@@ -1464,6 +1515,7 @@ async function syncNow(quiet){
     compactTomb(S);
     const after = syncSig(S);
     if(dirty || theirs === null || after !== theirs){
+      S.appv = APP_V;
       await syncPush(S);
       seenStamp = await syncStamp();          // our own write, so do not re-pull it
       dirty = false;
@@ -2759,6 +2811,54 @@ function renderPay(force){
     : `Open <b>Jobs and pay</b> under each of you: add your jobs and their hourly rates, then how you're paid. The paychecks work themselves out.`;
   if(refocus){ const n = host.querySelector(refocus); if(n){ n.closest("details") && (n.closest("details").open = true); n.focus(); } }
 }
+/* On payday, and for ten days after, each paycheck the app worked out asks
+   what actually landed, so the Taxes tab runs on real figures. "Not yet"
+   hides it until tomorrow; the cross stops asking about that paycheck. */
+const ASKKEY = "schedsync-payask";
+const askSeen = () => { try{ return JSON.parse(localStorage.getItem(ASKKEY)) || {}; }catch(e){ return {}; } };
+function paydayAsks(){
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const seen = askSeen(), iso = isoOf(today);
+  return people().flatMap(w => paychecksFor(w, addDays(today, -10), today).map(c => ({...c, w})))
+    .filter(c => !c.pr.loose && !c.pr.cash && c.mins && !c.actual)
+    .filter(c => { const v = seen[`${c.w}|${checkKey(c)}`]; return !v || (v !== "no" && v <= iso); })
+    .slice(0, 3);
+}
+function renderPayAsk(){
+  const list = paydayAsks();
+  $$(".payask").forEach(host => {
+    if(host.contains(document.activeElement) && document.activeElement.matches("input")) return;
+    host.innerHTML = list.map(c => `<div class="note"><div class="pahead"><b>Payday: ${escapeHTML(nameOf(c.w))} · ${escapeHTML(c.pr.label)}</b>
+        <span>${shortDate(c.payday)} · for ${span(c.start, c.end)} · about ${money(c.net)} after tax</span>
+        <button type="button" class="x paskip" data-ask="${c.w}|${checkKey(c)}" title="Don't ask about this paycheck">✕</button></div>
+      <div class="slipform" data-w="${c.w}" data-key="${checkKey(c)}">
+        <label>What landed <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sn" placeholder="after tax"></label>
+        <label>Before tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sg" value="${c.gross.toFixed(2)}"></label>
+        <label>Federal tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="sf" placeholder="optional"></label>
+        <label>State tax <span class="pre">$</span><input type="number" inputmode="decimal" step="0.01" min="0" class="ss" placeholder="optional"></label>
+        <button type="button" class="btn sm pasave">Save</button>
+        <button type="button" class="btn ghost sm palater" data-ask="${c.w}|${checkKey(c)}">Not yet</button>
+      </div></div>`).join("");
+  });
+}
+document.addEventListener("click", ev => {
+  const t = ev.target.closest && ev.target.closest(".payask .pasave, .payask .palater, .payask .paskip");
+  if(!t) return;
+  if(t.dataset.ask){
+    const seen = askSeen(), cut = isoOf(addDays(new Date(), -12));
+    Object.keys(seen).forEach(k => { if(k.slice(-10) < cut) delete seen[k]; });   // forget paychecks long past
+    seen[t.dataset.ask] = t.classList.contains("paskip") ? "no" : isoOf(addDays(new Date(), 1));
+    try{ localStorage.setItem(ASKKEY, JSON.stringify(seen)); }catch(e){}
+    return renderPayAsk();
+  }
+  const form = t.closest(".slipform"), w = form.dataset.w, key = form.dataset.key;
+  const g = +form.querySelector(".sg").value, n = +form.querySelector(".sn").value;
+  if(!(g > 0 && n > 0 && n <= g)) return alert("Type what landed in your account, and the before-tax amount. After tax can't be more than before tax.");
+  const held = heldLines(form, g, n); if(!held) return;
+  const raw = JSON.parse(JSON.stringify(S.pay)); raw.actual[w][key] = {g, n, ...held};
+  S.pay = normPay(raw); S.pm = Date.now(); document.activeElement.blur(); save(); syncSoon(); renderAll();
+});
+
 /* Typing a payslip over a paid paycheck's estimate. */
 let SLIP = null;
 /* The federal and state tax lines of a payslip, when both are filled in:
@@ -3044,7 +3144,7 @@ function renderAll(){
   syncAddStation();
   fillPlaces($("#feedKind"), $("#feedWho").value);
   renderWeekBar(); renderStrip(); renderGrid(); renderFree(); renderTable(); renderHours();
-  renderPay(); save();
+  renderPay(); renderPayAsk(); save();
   if(document.getElementById('feedState')) renderFeeds();
 }
 function del(id){
@@ -3771,7 +3871,27 @@ setInterval(() => refreshFeeds(true), 30*60*1000);   // ask only once the app is
 syncStatus(SYNC.on ? "connecting…" : "off");
 syncStart();
 setTimeout(fillSyncFields, 300);   // after any late form restoration
-document.addEventListener("visibilitychange", () => { if(!document.hidden) syncNow(true); });
+document.addEventListener("visibilitychange", () => { if(!document.hidden){ checkForUpdate(); syncNow(true); } });
+setInterval(checkForUpdate, 10 * 60 * 1000);
+
+/* Installing: works offline once opened, opens full screen with its own icon. */
+if("serviceWorker" in navigator && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)))
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+let INSTALL = null;
+function renderInstall(){
+  const hint = $("#installHint"), btn = $("#installBtn");
+  const home = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  btn.style.display = INSTALL && !home ? "" : "none";
+  hint.innerHTML = home ? "It's on your home screen. Tap the name in the top corner to get back to this week."
+    : INSTALL ? "Opens full screen with its own icon, and still opens with no internet."
+    : ios ? "Opens full screen with its own icon, and still opens with no internet. In Safari, tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>."
+    : "Opens full screen with its own icon, and still opens with no internet. In your browser's menu, choose <b>Install app</b> or <b>Add to Home screen</b>.";
+}
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; renderInstall(); });
+addEventListener("appinstalled", () => { INSTALL = null; renderInstall(); });
+$("#installBtn").onclick = async () => { if(!INSTALL) return; INSTALL.prompt(); await INSTALL.userChoice; INSTALL = null; renderInstall(); };
+renderInstall();
 </script>
 </body>
 </html>

@@ -18,10 +18,13 @@ It runs in the browser as a single HTML file, with no build step and no account.
   or an overnight runs into a morning class.
 - **Pay**: each paycheck on its real payday, before and after tax, which job it's from, and the
   real figures from a payslip once you type them in. Set up your own jobs, rates, pay schedule and tax.
+  On payday it asks what landed, so the numbers stay real without digging through statements later.
 - **Taxes**: what you've earned and taken home month by month, tax held back, how close you are to
   the Massachusetts $8,000 line and the federal standard deduction, an estimated refund, and a CSV export.
 - **Photo / Paste**: read a schedule from a screenshot or pasted text.
 - **Job calendars**: subscribe to a shift scheduler's iCal link and shifts appear by themselves.
+- **On your home screen**: install it like an app. It opens full screen and works with no internet,
+  and a tab left open on an old version reloads itself instead of syncing.
 
 ## Sharing
 
