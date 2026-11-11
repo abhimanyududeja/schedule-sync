@@ -847,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026111002;
+const APP_V = 2026111101;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -2964,7 +2964,8 @@ function yearChecks(w, y, aside = false){
     .sort((a, b) => a.payday - b.payday);
 }
 /* Where the year is heading: what's been paid, the paychecks the app can already
-   see, and after the last of those the pace of the past eight weeks. */
+   see, and for every week with nothing on the calendar yet, the pace of the
+   past eight weeks. */
 function taxYear(w, y){
   const checks = yearChecks(w, y), now = new Date(), end = new Date(y, 11, 31);
   const sum = (list, f) => list.reduce((t, c) => t + c[f], 0);
@@ -2975,7 +2976,15 @@ function taxYear(w, y){
   const ratio = so.gross ? {fed: so.fed / so.gross, st: so.st / so.gross, net: so.net / so.gross} : {fed:0, st:0, net:1};
   const last = checks.length ? checks[checks.length - 1].payday : now;
   const from = Math.max(last.getTime(), now.getTime());
-  const weeks = y === now.getFullYear() && end.getTime() > from ? (end.getTime() - from) / (7 * DAY) : 0;
+  // a coming paycheck can cover a week whose shifts aren't on the calendar yet; that
+  // week goes at the same pace, so the paycheck doesn't look half its size
+  const blank = y !== now.getFullYear() ? 0 : ahead.filter(c => c.pr.kinds && c.start).reduce((t, c) => {
+    let n = 0;
+    for(let d = weekStartOf(c.start); d <= c.end; d = addDays(d, 7))
+      if(d.getTime() > now.getTime() && !weekEvents(isoOf(d)).some(e => e.person === w && c.pr.kinds.includes(e.kind))) n++;
+    return t + n;
+  }, 0);
+  const weeks = (y === now.getFullYear() && end.getTime() > from ? (end.getTime() - from) / (7 * DAY) : 0) + blank;
   const more = pace * weeks;
   const yr = {gross: so.gross + sum(ahead, "gross") + more, fed: so.fed + sum(ahead, "fed") + more * ratio.fed,
               st: so.st + sum(ahead, "st") + more * ratio.st};
@@ -3057,7 +3066,7 @@ function renderTaxes(){
       ${T.cfg.state === "MA" ? `<tr><td><b>Massachusetts</b><span>${T.yr.gross <= MA.line ? "No Tax Status: under $8,000" : "5% past the $4,400 exemption, with the low-income credit"}</span></td>
         <td>${money(T.yr.st)}</td><td>${money(T.owe.st)}</td><td><b>${signed(T.back.st)}</b></td></tr>` : ""}
     </tbody></table>
-    ${thisYear ? `<p class="fine">For the whole of ${y}: paychecks so far, the ones already scheduled${T.pace && T.weeks >= 1 ? `, then about ${money(T.pace)} a week for the last ${Math.round(T.weeks)} weeks, the pace of the past eight` : ""}.</p>` : ""}
+    ${thisYear ? `<p class="fine">For the whole of ${y}: paychecks so far, the ones already scheduled${T.pace && T.weeks >= 1 ? `, then about ${money(T.pace)} a week, the pace of the past eight, for the ${Math.round(T.weeks)} weeks not on the calendar yet` : ""}.</p>` : ""}
   </div>
 
   <div class="hcard taxcard">
