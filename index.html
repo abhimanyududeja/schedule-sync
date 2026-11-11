@@ -608,6 +608,7 @@
       <div class="f"><label>End</label><input id="fEnd" type="time" value="10:30"></div>
       <button class="btn" id="addBtn">Add</button>
     </div>
+    <small class="dayhint" id="fOverHint"></small>
     <div id="fImpact"></div>
   </details>
 
@@ -846,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026110501;
+const APP_V = 2026111001;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -867,6 +868,7 @@ const GROUPS = [["campus","On campus"], ["off","Off campus"], ["coop","Co-op or 
    fixed shifts, the unpaid half hour on 8h+ runs and the overnight extra. */
 const JOB_TEMPLATES = [
   ["rso",    "Northeastern RSO", {label:"RSO", group:"campus", brk:true, night:true, st:true}],
+  ["rsosup", "Northeastern RSO supervisor or shadow", {label:"RSO Shadow", group:"campus", brk:true, night:true, sup:true}],
   ["campus", "On-campus job",    {label:"Campus job", group:"campus"}],
   ["off",    "Off-campus job",   {label:"Job", group:"off"}],
   ["coop",   "Co-op or internship", {label:"Co-op", group:"coop"}],
@@ -924,15 +926,22 @@ const RSO_STATIONS = [
   ["Proctor Shadow","SS"],
 ];
 const STATION_TYPE = Object.fromEntries(RSO_STATIONS);
-/* RSO runs fixed blocks, so picking the shift fills the times. */
+/* RSO runs fixed blocks, so picking the shift fills the times. Supervisors,
+   and the shadows training to be one, work a different set, and their D shift
+   runs past midnight: 11pm to 7am, kept as minutes past the start day's midnight. */
 const RSO_SHIFTS = [["A",480,720], ["B",720,960], ["C1",960,1200], ["C2",1200,1440], ["M",0,480]];
-const shiftLabel = ([n,a,b]) => `${n} · ${fmt(a)}–${fmt(b)}`;
-const shiftFor = (start,end) => (RSO_SHIFTS.find(([,a,b]) => a === start && b === end) || [""])[0];
-function fillShifts(sel, start, end){
+const SUP_SHIFTS = [["A",420,660], ["B",660,900], ["C1",900,1140], ["C2",1140,1380], ["D",1380,1860]];
+const shiftsFor = kind => jobHas(kind, "sup") ? SUP_SHIFTS : RSO_SHIFTS;
+const hasShifts = kind => jobHas(kind, "st") || jobHas(kind, "sup");
+const clockEnd = b => b > 1440 ? b - 1440 : b;
+const shiftLabel = ([n,a,b]) => `${n} · ${fmt(a)}–${fmt(clockEnd(b))}`;
+const shiftFor = (start, end, kind) => (shiftsFor(kind).find(([,a,b]) => a === start && (b === end || clockEnd(b) === end)) || [""])[0];
+// the edit box holds one block, so it leaves out the shifts that run into the next day
+function fillShifts(sel, start, end, kind, oneDay = false){
   sel.innerHTML = "";
   const custom = el("option"); custom.value = ""; custom.textContent = "Custom times"; sel.appendChild(custom);
-  RSO_SHIFTS.forEach(sh => { const o = el("option"); o.value = sh[0]; o.textContent = shiftLabel(sh);
-    if(sh[0] === shiftFor(start,end)) o.selected = true; sel.appendChild(o); });
+  shiftsFor(kind).filter(sh => !oneDay || sh[2] <= 1440).forEach(sh => { const o = el("option"); o.value = sh[0]; o.textContent = shiftLabel(sh);
+    if(sh[0] === shiftFor(start, end, kind)) o.selected = true; sel.appendChild(o); });
 }
 const stationLabel = n => n ? `${n} (${STATION_TYPE[n] || "?"})` : "";
 /* Only RSO posts have stations; every other workplace uses the free-text name. */
@@ -1079,9 +1088,9 @@ function normPay(p){
       const k = key(j && j.k);
       if(!k || k === "other" || seen.has(k)) return;
       seen.add(k);
-      out.jobs[w].push({...later(j, ["k","label","group","c","brk","night","tips","st","hide"]), k, label: str(j.label, 30) || "Job", group: GROUPS.some(([g]) => g === j.group) ? j.group : "other",
+      out.jobs[w].push({...later(j, ["k","label","group","c","brk","night","tips","st","sup","hide"]), k, label: str(j.label, 30) || "Job", group: GROUPS.some(([g]) => g === j.group) ? j.group : "other",
         c: Math.abs(Math.floor(+j.c || 0)) % PALETTE.length,
-        ...["brk","night","tips","st","hide"].reduce((o, f) => (j[f] === true && (o[f] = true), o), {})});
+        ...["brk","night","tips","st","sup","hide"].reduce((o, f) => (j[f] === true && (o[f] = true), o), {})});
     });
     const ids = new Set();
     (((p && p.payrolls && p.payrolls[w]) || [])).forEach(r => {
@@ -1884,9 +1893,9 @@ function openEdit(e, isNew){
   fillPlaces(q("eKind"), e.person);
   q("eKind").value = e.kind;
   fillStations(q("eStation"), e.station || "");
-  fillShifts(q("eShift"), e.start, e.end);
+  fillShifts(q("eShift"), e.start, e.end, e.kind, true);
   q("eShift").onchange = () => {
-    const sh = RSO_SHIFTS.find(x => x[0] === q("eShift").value);
+    const sh = shiftsFor(q("eKind").value).find(x => x[0] === q("eShift").value);
     if(!sh) return;
     q("eStart").value = toHHMM(sh[1]);
     q("eEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
@@ -1894,12 +1903,15 @@ function openEdit(e, isNew){
   };
   ["eStart","eEnd"].forEach(k => q(k).addEventListener("change", () => {
     delete q("eEnd").dataset.exact;
-    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value));
+    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value), q("eKind").value, true);
   }));
   const syncEditStation = () => {
     const on = hasStations(q("eKind").value);
     wrap.querySelector(".eStationWrap").style.display = on ? "" : "none";
-    wrap.querySelector(".eShiftWrap").style.display   = on ? "" : "none";
+    wrap.querySelector(".eShiftWrap").style.display   = hasShifts(q("eKind").value) ? "" : "none";
+    const st = q("eStart").value, en = q("eEnd").value;   // empty the first time, before the times are filled in
+    fillShifts(q("eShift"), st ? toMin(st) : e.start, q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : en ? toMin(en) : e.end,
+               q("eKind").value, true);
     wrap.querySelector(".eTitleWrap").style.display   = on ? "none" : "";
   };
   q("eKind").addEventListener("change", syncEditStation); syncEditStation();
@@ -2340,7 +2352,7 @@ function workRuns(person, iso, keep = () => true){
     let cur = null;
     list.forEach(e => {
       if(cur && e.start <= cur.end){ cur.end = Math.max(cur.end, e.end); cur.parts.push(e); }
-      else { cur = {start:e.start, end:e.end, kind:e.kind || "other", parts:[e]}; runs.push(cur); }
+      else { cur = {day:e.day, start:e.start, end:e.end, kind:e.kind || "other", parts:[e]}; runs.push(cur); }
     });
   });
   runs.forEach(r => r.len = r.end - r.start + r.parts.reduce((t, e) => t + clockGain(iso, e), 0));
@@ -2355,9 +2367,21 @@ function hoursFor(person, iso, keep = () => true){
     by[k].night += Math.max(0, nightMins(e) + clockGain(iso, e));
     by[k].shifts++;
   });
-  workRuns(person, iso, keep).forEach(r => {
+  /* A shift past midnight is two blocks, one either side of 12am, possibly in
+     two different weeks. It's one shift for its break, so the part up to
+     midnight adds to the length of the part after it, which carries the break. */
+  const runs = workRuns(person, iso, keep), near = {};
+  const runsOf = n => n === 0 ? runs : (near[n] ||= workRuns(person, isoOf(addDays(parseISO(iso), 7 * n)), keep));
+  const before = r => r.day === 0 ? runsOf(-1).find(x => x.day === 6 && x.end === 1440 && x.kind === r.kind)
+                                  : runs.find(x => x.day === r.day - 1 && x.end === 1440 && x.kind === r.kind);
+  const after = r => r.day === 6 ? runsOf(1).find(x => x.day === 0 && x.start === 0 && x.kind === r.kind)
+                                 : runs.find(x => x.day === r.day + 1 && x.start === 0 && x.kind === r.kind);
+  runs.forEach(r => {
+    if(r.day > 0 && r.start === 0 && before(r) && by[r.kind]) by[r.kind].shifts--;   // one shift, not two
     if(!jobHas(r.kind, "brk")) return;
-    if(r.len < BREAK_AFTER) return;
+    if(r.end === 1440 && after(r)) return;       // the break goes with the morning part
+    const tail = r.start === 0 ? before(r) : null;
+    if(r.len + (tail ? tail.len : 0) < BREAK_AFTER) return;
     const k = r.kind;
     if(!by[k]) return;
     by[k].mins = Math.max(0, by[k].mins - BREAK_MINS);
@@ -3456,35 +3480,50 @@ $("#addBtn").onclick = () => {
   const s = toMin($("#fStart").value);
   const e = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
   if(!days.length) return alert("Pick at least one day.");
-  if(e <= s) return alert("The end time has to be after the start time.");
+  if(e === s) return alert("The end time has to be different from the start time.");
+  // an end at or before the start runs past midnight: tonight up to 12am, then the next morning
+  const end = e > s && e <= 1440 ? e : 1440, next = e > 1440 ? e - 1440 : e < s ? e : 0;
   const wk = $("#fRepeat").value === "every" ? null : VIEW;
   const place = $("#fKind").value;
   const station = hasStations(place) ? $("#fStation").value : "";
   if(hasStations(place) && !station) return alert("Pick which station it is.");
   const label = station || $("#fTitle").value.trim() || placeName(place);
   days.forEach(d => {
-    addEvent($("#fPerson").value, d, s, e, label, place, wk);
+    addEvent($("#fPerson").value, d, s, end, label, place, wk);
+    if(station) S.events[S.events.length-1].station = station;
+    if(!next) return;
+    // Saturday night ends on the Sunday that starts the next week
+    addEvent($("#fPerson").value, (d + 1) % 7, 0, next, label, place, wk && d === 6 ? isoOf(addDays(parseISO(wk), 7)) : wk);
     if(station) S.events[S.events.length-1].station = station;
   });
   $("#fTitle").value = ""; renderAll(); syncSoon();
 };
 function syncAddStation(){
-  const on = hasStations($("#fKind").value);
+  const k = $("#fKind").value, on = hasStations(k);
   $("#fStationWrap").style.display = on ? "" : "none";
-  $("#fShiftWrap").style.display   = on ? "" : "none";
+  $("#fShiftWrap").style.display   = hasShifts(k) ? "" : "none";
   $("#fTitleWrap").style.display   = on ? "none" : "";
-  if(on) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
+  if(hasShifts(k)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value), k);
+  overnightHint();
+}
+/* Says so when the times run past midnight, since that adds a second block. */
+function overnightHint(){
+  const s = toMin($("#fStart").value), e = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
+  const next = e > 1440 ? e - 1440 : e < s && e > 0 ? e : 0;
+  $("#fOverHint").textContent = next ? `Ends at ${fmt(next)} the next morning, so it's saved as two blocks, either side of midnight.` : "";
 }
 $("#fShift").onchange = () => {
-  const sh = RSO_SHIFTS.find(x => x[0] === $("#fShift").value);
+  const sh = shiftsFor($("#fKind").value).find(x => x[0] === $("#fShift").value);
   if(!sh) return;
   $("#fStart").value = toHHMM(sh[1]);
-  $("#fEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
-  $("#fEnd").dataset.exact = sh[2];          // keep midnight as 24:00, not 23:59
+  $("#fEnd").value   = toHHMM(sh[2] === 1440 ? 1439 : clockEnd(sh[2]));
+  $("#fEnd").dataset.exact = sh[2];          // keep midnight as 24:00, not 23:59, and 7am next day as 31:00
+  overnightHint();
 };
 ["#fStart","#fEnd"].forEach(k => $(k).addEventListener("change", () => {
   delete $("#fEnd").dataset.exact;
-  if(hasStations($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value));
+  if(hasShifts($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value), $("#fKind").value);
+  overnightHint();
 }));
 $("#fKind").addEventListener("change", syncAddStation);
 $("#fPerson").onchange = () => { fillPlaces($("#fKind"), $("#fPerson").value); syncAddStation(); };
