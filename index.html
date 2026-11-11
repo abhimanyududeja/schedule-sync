@@ -847,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026111001;
+const APP_V = 2026111002;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -3496,7 +3496,7 @@ $("#addBtn").onclick = () => {
     addEvent($("#fPerson").value, (d + 1) % 7, 0, next, label, place, wk && d === 6 ? isoOf(addDays(parseISO(wk), 7)) : wk);
     if(station) S.events[S.events.length-1].station = station;
   });
-  $("#fTitle").value = ""; renderAll(); syncSoon();
+  $("#fTitle").value = ""; F_TOUCHED = false; fImpact(); renderAll(); syncSoon();
 };
 function syncAddStation(){
   const k = $("#fKind").value, on = hasStations(k);
@@ -3633,14 +3633,21 @@ DAYS.forEach((d,i) => {
   $("#fDays").appendChild(b);
 });
 fDayHint();
+/* What the block being set up would do to hours, pay and clashes. It waits
+   until the form is actually being filled in, so its starting values don't
+   raise a warning nobody asked about, and goes quiet again after Add. */
+let F_TOUCHED = false;
 const fImpact = () => {
-  const e0 = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
-  const place = $("#fKind").value;
-  $("#fImpact").innerHTML = shiftImpact($$("#fDays button.on").map(b => ({person: $("#fPerson").value, kind: place,
-    title: $("#fTitle").value || placeName(place), day: +b.dataset.d, start: toMin($("#fStart").value), end: e0,
-    week: $("#fRepeat").value === "every" ? null : VIEW})));
+  if(!F_TOUCHED){ $("#fImpact").innerHTML = ""; return; }
+  const s0 = toMin($("#fStart").value), e0 = $("#fEnd").dataset.exact ? +$("#fEnd").dataset.exact : toMin($("#fEnd").value);
+  const end = e0 > s0 && e0 <= 1440 ? e0 : 1440, next = e0 > 1440 ? e0 - 1440 : e0 < s0 ? e0 : 0;
+  const place = $("#fKind").value, wk = $("#fRepeat").value === "every" ? null : VIEW;
+  const base = {person: $("#fPerson").value, kind: place, title: $("#fTitle").value || placeName(place)};
+  $("#fImpact").innerHTML = shiftImpact($$("#fDays button.on").flatMap(b => { const d = +b.dataset.d;
+    return [{...base, day: d, start: s0, end, week: wk}].concat(next && d < 6 ? [{...base, day: d + 1, start: 0, end: next, week: wk}] : []); }));
 };
-["change", "input", "click"].forEach(t => $("#addCard").addEventListener(t, () => setTimeout(fImpact)));
+["change", "input"].forEach(t => $("#addCard").addEventListener(t, () => { F_TOUCHED = true; setTimeout(fImpact); }));
+$("#fDays").addEventListener("click", () => { F_TOUCHED = true; setTimeout(fImpact); });
 fImpact();
 /* A stray paste into the name box used to blow out every dropdown, so cap it. */
 const NAME_MAX = 24;
