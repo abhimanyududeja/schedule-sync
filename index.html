@@ -847,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026111101;
+const APP_V = 2026111401;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -2376,8 +2376,14 @@ function hoursFor(person, iso, keep = () => true){
                                   : runs.find(x => x.day === r.day - 1 && x.end === 1440 && x.kind === r.kind);
   const after = r => r.day === 6 ? runsOf(1).find(x => x.day === 0 && x.start === 0 && x.kind === r.kind)
                                  : runs.find(x => x.day === r.day + 1 && x.start === 0 && x.kind === r.kind);
+  const allNight = r => r.start <= 120 && r.end > 120;
+  const runNightOf = r => r.parts.reduce((t, e) => t + Math.max(0, nightMins(e) + clockGain(iso, e)), 0);
   runs.forEach(r => {
     if(r.day > 0 && r.start === 0 && before(r) && by[r.kind]) by[r.kind].shifts--;   // one shift, not two
+    // a shift still going at 2am is an overnight shift and all of it gets the overnight
+    // extra, including the hour or two before midnight of one that starts late (11pm-7am)
+    const night = allNight(r) || (r.end === 1440 && r.start >= 22 * 60 && after(r) && allNight(after(r)));
+    if(night && by[r.kind]) by[r.kind].night += r.len - runNightOf(r);
     if(!jobHas(r.kind, "brk")) return;
     if(r.end === 1440 && after(r)) return;       // the break goes with the morning part
     const tail = r.start === 0 ? before(r) : null;
@@ -2385,8 +2391,8 @@ function hoursFor(person, iso, keep = () => true){
     const k = r.kind;
     if(!by[k]) return;
     by[k].mins = Math.max(0, by[k].mins - BREAK_MINS);
-    // an M shift is all overnight, so its unpaid half hour comes out of the overnight hours
-    const runNight = r.parts.reduce((t, e) => t + Math.max(0, nightMins(e) + clockGain(iso, e)), 0);
+    // an M or D shift is all overnight, so its unpaid half hour comes out of the overnight hours
+    const runNight = night ? r.len : runNightOf(r);
     by[k].night = Math.max(0, by[k].night - BREAK_MINS * runNight / r.len);
     by[k].breaks++;
   });
