@@ -847,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026111401;
+const APP_V = 2026111801;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -1679,7 +1679,7 @@ function intersect(p, q){
 /* A repeating block can carry a start week, so a job that began partway
    through the year does not appear in every week before it existed. */
 const weekEvents = (iso) => S.events.filter(e =>
-  e.week === null ? (!e.from || iso >= e.from) && (!e.to || iso <= e.to) : e.week === iso);
+  e.week === null ? (!e.from || iso >= e.from) && (!e.to || iso <= e.to) && !(e.skip && e.skip.includes(iso)) : e.week === iso);
 const busyOf = (who,d) => merge(weekEvents(VIEW).filter(e => e.person===who && e.day===d).map(e => [e.start,e.end]));
 /* A blank or inverted waking window would silently zero out the whole week,
    so fall back to the full day and let badWake() surface the problem. */
@@ -1879,12 +1879,16 @@ function openEdit(e, isNew){
         <option value="every">Every week</option></select></div>
       <div class="f"><label>Starting</label><select class="eFrom"></select></div>
       <div class="f"><label>Until</label><select class="eTo"></select></div>
+      ${!isNew && e.week === null ? `<div class="f"><label>Change</label><select class="eScope">
+        <option value="week">Just this week (${weekDates(VIEW)})</option>
+        <option value="all">Every week</option></select></div>` : ""}
     </div>
     <div class="eImpact"></div>
     <div class="row">
       <button class="btn eSave">${isNew ? "Add this shift" : "Save changes"}</button>
       <button class="btn ghost eCancel">Cancel</button>
-      <button class="btn danger eDel" style="margin-left:auto${isNew ? ";display:none" : ""}">Delete this block</button>
+      <button class="btn danger eDel" style="margin-left:auto${isNew ? ";display:none" : ""}">${!isNew && e.week === null ? "Delete this week only" : "Delete this block"}</button>
+      ${!isNew && e.week === null ? `<button class="btn danger eDelAll">Delete every week</button>` : ""}
     </div></div>`;
   document.body.appendChild(wrap);
 
@@ -1917,9 +1921,10 @@ function openEdit(e, isNew){
   q("eKind").addEventListener("change", syncEditStation); syncEditStation();
   q("eTitle").value = e.title;
 
-  /* The same block usually runs on more than one day: a daily standup is Monday
-     to Friday, kept as five blocks. Light up every day this one already covers so
-     an edit can add or drop days here instead of opening all five. */
+  /* The same block often runs on more than one day: a daily standup is Monday
+     to Friday, kept as five blocks. Only the day you opened is lit, so an edit
+     changes that day alone; the others are named, and lighting one of them
+     changes it too. */
   const twins = isNew ? [] : S.events.filter(o =>
     o.id !== e.id && !o.src && o.person === e.person && o.kind === e.kind &&
     o.title === e.title && o.start === e.start && o.end === e.end &&
@@ -1928,15 +1933,14 @@ function openEdit(e, isNew){
   const twinByDay = new Map(twins.map(o => [o.day, o]));
   const litDays = () => [...wrap.querySelectorAll(".eDays button.on")].map(b => +b.dataset.d);
   const hint = () => {
-    const n = litDays().length;
-    q("dayhint").textContent = n > 1
-      ? `Saves on all ${n} days. Tap a day off to drop it.`
-      : "Tap more days to put the same block on each of them.";
+    const n = litDays().length, also = twins.filter(o => !litDays().includes(o.day)).map(o => DAYS[o.day]);
+    q("dayhint").textContent = (n > 1 ? `Saves on all ${n} days.` : "Tap more days to put the same block on each of them.") +
+      (also.length ? ` Also at this time on ${also.join(", ")}: left as it is unless you tap it.` : "");
   };
   DAYS.forEach((d,i) => {
     const b = el("button","",DAYBTN[i]);
     b.type = "button"; b.dataset.d = i;
-    if(i === e.day || twinByDay.has(i)) b.classList.add("on");
+    if(i === e.day) b.classList.add("on");
     b.onclick = () => { b.classList.toggle("on"); hint(); };
     q("eDays").appendChild(b);
   });
@@ -1974,8 +1978,15 @@ function openEdit(e, isNew){
   const close = () => wrap.remove();
   q("eCancel").onclick = close;
   wrap.onclick = ev => { if(ev.target === wrap) close(); };
+  // a repeating block is one block for every week: dropping it from one week
+  // just marks that week as skipped
+  const skipWeek = o => { o.skip = [...new Set([...(o.skip || []), VIEW])]; touch(o); };
   q("eDel").onclick = () => {
-    if(e.week === null && !confirm(`"${e.title}" repeats every week.\n\nOK = delete it from every week.`)) return;
+    close();
+    if(e.week === null){ skipWeek(e); renderAll(); syncSoon(); } else del(e.id);
+  };
+  if(q("eDelAll")) q("eDelAll").onclick = () => {
+    if(!confirm(`Delete "${e.title}" from every week?`)) return;
     close(); del(e.id);
   };
   q("eSave").onclick = () => {
@@ -1989,6 +2000,15 @@ function openEdit(e, isNew){
     const hadStation = !!e.station;
     if(hasStations(place) && !station && (isNew || hadStation))
       return alert("Pick which station it is.");
+    if(!litDays().length) return alert("Pick at least one day.");
+    if(q("eScope") && q("eScope").value === "week"){
+      // this week only: the repeating blocks skip this week and a one-off takes their place
+      const days = litDays(), title = station || q("eTitle").value.trim() || placeName(place);
+      [e, ...twins].filter(o => days.includes(o.day)).forEach(skipWeek);
+      days.forEach(d => S.events.push(touch({id: newId(), person: q("eWho").value, kind: place, title,
+        day: d, start: s, end: en, week: VIEW, ...(station ? {station} : {})})));
+      close(); renderAll(); syncSoon(); return;
+    }
     e.person = q("eWho").value;
     e.kind   = place;
     if(station){ e.station = station; e.title = station; }
@@ -2020,8 +2040,8 @@ function openEdit(e, isNew){
       touch(copy);
       if(!twin) S.events.push(copy);
     });
-    // a sibling on a day you turned off goes, as does one on the day this block took
-    const gone = twins.filter(o => !days.includes(o.day) || o.day === e.day);
+    // days left off are left alone; only a sibling on the day this block moved to goes
+    const gone = twins.filter(o => o.day === e.day);
     if(gone.length){
       const t = Date.now(), ids = new Set(gone.map(o => o.id));
       gone.forEach(o => S.tomb.push({ k: o.id, t }));
@@ -2054,7 +2074,8 @@ function shiftImpact(cands, drop = new Set()){
   }
   if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
   if(tired.length){ cls += " bad"; bits.push(...tired.map(tiredText)); }
-  const mine = real.filter(x => !drop.has(x.id) && x.person === w && (x.week === null ? (!x.from || iso >= x.from) : x.week === iso));
+  const mine = real.filter(x => !drop.has(x.id) && x.person === w && (x.week === null
+    ? (!x.from || iso >= x.from) && (!x.to || iso <= x.to) && !(x.skip && x.skip.includes(iso)) : x.week === iso));
   const hits = cands.flatMap(c => mine.filter(o => o.day === c.day && o.start < c.end && c.start < o.end).map(o => `${DAYS[c.day]}: clashes with ${blockText(o)}`));
   if(hits.length){ cls += " bad"; bits.push(...new Set(hits)); }
   return bits.length ? `<div class="${cls}">${bits.map(escapeHTML).join("<br>")}</div>` : "";
@@ -2141,7 +2162,17 @@ function startDrag(ev, e, lo){
     document.removeEventListener("pointerup", up);
     node.classList.remove("dragging");
     if(dragMoved){
-      if(e.day !== d0 || e.start !== s0 || e.end !== e0){ touch(e); renderAll(); syncSoon(); }
+      if(e.day !== d0 || e.start !== s0 || e.end !== e0){
+        // a repeating block moved in one week asks whether the move is for that week alone
+        if(e.week === null && confirm(`Move "${e.title}" just this week?\n\nOK = only ${weekDates(VIEW)}\nCancel = every week`)){
+          const copy = {...e, id: newId(), week: VIEW};
+          delete copy.from; delete copy.to; delete copy.skip;
+          S.events.push(touch(copy));
+          Object.assign(e, {day: d0, start: s0, end: e0});
+          e.skip = [...new Set([...(e.skip || []), VIEW])];
+        }
+        touch(e); renderAll(); syncSoon();
+      }
       setTimeout(() => dragMoved = false, 0);      // let the click handler see it
     }
   };
