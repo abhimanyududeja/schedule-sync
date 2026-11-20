@@ -847,7 +847,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026111801;
+const APP_V = 2026112001;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -1902,19 +1902,19 @@ function openEdit(e, isNew){
     const sh = shiftsFor(q("eKind").value).find(x => x[0] === q("eShift").value);
     if(!sh) return;
     q("eStart").value = toHHMM(sh[1]);
-    q("eEnd").value   = toHHMM(sh[2] >= 1440 ? 1439 : sh[2]);
+    q("eEnd").value   = toHHMM(sh[2] >= 1440 ? 0 : sh[2]);
     q("eEnd").dataset.exact = sh[2];
   };
   ["eStart","eEnd"].forEach(k => q(k).addEventListener("change", () => {
     delete q("eEnd").dataset.exact;
-    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value), q("eKind").value, true);
+    fillShifts(q("eShift"), toMin(q("eStart").value), toMin(q("eEnd").value) || 1440, q("eKind").value, true);
   }));
   const syncEditStation = () => {
     const on = hasStations(q("eKind").value);
     wrap.querySelector(".eStationWrap").style.display = on ? "" : "none";
     wrap.querySelector(".eShiftWrap").style.display   = hasShifts(q("eKind").value) ? "" : "none";
     const st = q("eStart").value, en = q("eEnd").value;   // empty the first time, before the times are filled in
-    fillShifts(q("eShift"), st ? toMin(st) : e.start, q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : en ? toMin(en) : e.end,
+    fillShifts(q("eShift"), st ? toMin(st) : e.start, q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : en ? (toMin(en) || 1440) : e.end,
                q("eKind").value, true);
     wrap.querySelector(".eTitleWrap").style.display   = on ? "none" : "";
   };
@@ -1946,7 +1946,7 @@ function openEdit(e, isNew){
   });
   hint();
   q("eStart").value = toHHMM(e.start);
-  q("eEnd").value = toHHMM(e.end);
+  q("eEnd").value = toHHMM(e.end >= 1440 ? 0 : e.end);   // midnight shows as 12:00am
   q("eRep").value = e.week === null ? "every" : "once";
   const fromSel = q("eFrom"), toSel = q("eTo");
   /* weeks to pick from: a few months either side, plus whatever the block already uses */
@@ -1966,7 +1966,7 @@ function openEdit(e, isNew){
   q("eWho").onchange = () => fillPlaces(q("eKind"), q("eWho").value);
   setTimeout(() => q("eTitle").focus(), 30);
   const impact = () => {
-    const s0 = toMin(q("eStart").value), e0 = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
+    const s0 = toMin(q("eStart").value), e0 = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : (toMin(q("eEnd").value) || 1440);
     const wk = q("eRep").value === "every" ? null : (e.week || VIEW);
     q("eImpact").innerHTML = shiftImpact(litDays().map(d => ({person: q("eWho").value, kind: q("eKind").value,
       title: q("eTitle").value || e.title, day: d, start: s0, end: e0, week: wk})),
@@ -1991,8 +1991,9 @@ function openEdit(e, isNew){
   };
   q("eSave").onclick = () => {
     const s = toMin(q("eStart").value);
-    const en = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : toMin(q("eEnd").value);
-    if(!(en > s)) return alert("The end time has to be after the start time.");
+    // an end of 12:00am is midnight at the end of the day, as on a shift that runs 8pm to 12am
+    const typed = toMin(q("eEnd").value), en = q("eEnd").dataset.exact ? +q("eEnd").dataset.exact : typed === 0 ? 1440 : typed;
+    if(!(en > s)) return alert("The end time has to be after the start time. For a shift past midnight, end it at 12:00am and add the morning part on the next day.");
     if(q("eRep").value === "every" && q("eFrom").value && q("eTo").value && q("eTo").value < q("eFrom").value)
       return alert("Until has to be the same week as Starting, or later.");
     const place = q("eKind").value;
@@ -3549,7 +3550,7 @@ function syncAddStation(){
   $("#fStationWrap").style.display = on ? "" : "none";
   $("#fShiftWrap").style.display   = hasShifts(k) ? "" : "none";
   $("#fTitleWrap").style.display   = on ? "none" : "";
-  if(hasShifts(k)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value), k);
+  if(hasShifts(k)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value) || 1440, k);
   overnightHint();
 }
 /* Says so when the times run past midnight, since that adds a second block. */
@@ -3562,13 +3563,13 @@ $("#fShift").onchange = () => {
   const sh = shiftsFor($("#fKind").value).find(x => x[0] === $("#fShift").value);
   if(!sh) return;
   $("#fStart").value = toHHMM(sh[1]);
-  $("#fEnd").value   = toHHMM(sh[2] === 1440 ? 1439 : clockEnd(sh[2]));
+  $("#fEnd").value   = toHHMM(clockEnd(sh[2]) % 1440);
   $("#fEnd").dataset.exact = sh[2];          // keep midnight as 24:00, not 23:59, and 7am next day as 31:00
   overnightHint();
 };
 ["#fStart","#fEnd"].forEach(k => $(k).addEventListener("change", () => {
   delete $("#fEnd").dataset.exact;
-  if(hasShifts($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value), $("#fKind").value);
+  if(hasShifts($("#fKind").value)) fillShifts($("#fShift"), toMin($("#fStart").value), toMin($("#fEnd").value) || 1440, $("#fKind").value);
   overnightHint();
 }));
 $("#fKind").addEventListener("change", syncAddStation);
