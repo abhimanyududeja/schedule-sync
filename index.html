@@ -812,10 +812,11 @@
     <button class="btn ghost" id="addPerson">+ Add a person</button>
   </div>
   <div class="card">
-    <h2>Break weeks: no on-campus cap</h2>
+    <h2>Break days: no on-campus cap</h2>
     <p class="hint" style="margin:-4px 0 12px">
-      Student visas usually allow full-time work during official university breaks. Add those dates and
-      any week whose weekdays all fall inside one has no on-campus cap. Check your school's calendar first.
+      Student visas usually allow more than 20h a week during official university breaks, once your
+      international office confirms it. Hours on break days don't count toward the weekly cap; the other
+      days of that week still do. The daily limits (8h in a row, 12h a day) always apply.
     </p>
     <div id="breakList"></div>
     <div class="row">
@@ -847,7 +848,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026112001;
+const APP_V = 2026112201;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
@@ -976,10 +977,40 @@ const placeGroup = k => (jobOf(k) || {}).group || "other";
    full-time job. 0 means no cap. Set per person under Settings -> People. */
 const capOf = w => (S.pay && S.pay.cap[w]) || {h:20, scope:"campus"};
 const capWhere = c => c.scope === "all" ? "of work" : "on campus";
+// hours worked on a break day don't count toward an on-campus cap, so a week a
+// break starts or ends in is capped only on its other days
 function cappedOf(w, iso){
-  const c = capOf(w);
-  return Object.entries(hoursFor(w, iso)).filter(([k]) => c.scope === "all" ? placeGroup(k) !== "other" : placeGroup(k) === "campus")
+  const c = capOf(w), keep = c.scope === "all" ? undefined : e => !breakDay(isoOf(addDays(parseISO(iso), e.day)));
+  return Object.entries(hoursFor(w, iso, keep)).filter(([k]) => c.scope === "all" ? placeGroup(k) !== "other" : placeGroup(k) === "campus")
     .reduce((t, [, v]) => t + v.mins, 0);
+}
+const breakDay = d => ((S.pay && S.pay.breaks) || []).some(([a, b]) => d >= a && d <= b);
+const breakDaysIn = iso => [0,1,2,3,4,5,6].filter(i => breakDay(isoOf(addDays(parseISO(iso), i))));
+/* Limits on a single day that a break never lifts: on-campus work at most 8h
+   in a row, 12h in a day, and anything over 6h in a row needs a 30-minute unpaid
+   break (built into a single 8h shift, so only back-to-back blocks get the note).
+   A run that goes past midnight counts as one. */
+const DAY_MAX = 12 * 60, RUN_MAX = 8 * 60, RUN_BREAK = 6 * 60;
+function dayLimits(w, iso){
+  const mine = weekEvents(iso).filter(e => e.person === w && placeGroup(e.kind) === "campus");
+  const out = [];
+  for(let d = 0; d < 7; d++){
+    const day = mine.filter(e => e.day === d), worked = day.reduce((t, e) => t + realMins(iso, e), 0);
+    if(worked > DAY_MAX) out.push(`${DAYS[d]}: ${dur(worked)} on campus, over the 12h-a-day limit`);
+  }
+  const runs = [];
+  [...mine].sort((a, b) => a.day - b.day || a.start - b.start).forEach(e => {
+    const s = e.day * 1440 + e.start, en = e.day * 1440 + e.end, r = runs[runs.length - 1];
+    // a shift split at midnight (an 11pm-7am D shift) is still one block
+    if(r && s <= r.end){ if(!(s === r.end && e.start === 0)) r.n++; r.end = Math.max(r.end, en); }
+    else runs.push({start: s, end: en, n: 1});
+  });
+  runs.forEach(r => {
+    const len = r.end - r.start, when = DAYS[Math.floor(r.start / 1440)] + (Math.floor((r.end - 1) / 1440) > Math.floor(r.start / 1440) ? "–" + DAYS[Math.floor((r.end - 1) / 1440) % 7] : "");
+    if(len > RUN_MAX) out.push(`${when}: ${dur(len)} in a row, over the 8h limit`);
+    else if(len > RUN_BREAK && r.n > 1) out.push(`${when}: ${dur(len)} in a row, so take a 30m unpaid break in it`);
+  });
+  return out;
 }
 // a university break lifts an on-campus cap, never an all-work one
 const capOff = (w, iso) => !capOf(w).h || (capOf(w).scope === "campus" && breakWeek(iso));
@@ -2058,10 +2089,10 @@ function openEdit(e, isNew){
 function shiftImpact(cands, drop = new Set()){
   if(!cands.length || !(cands[0].end > cands[0].start)) return "";
   const w = cands[0].person, iso = cands[0].week || VIEW, real = S.events;
-  const b = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross};
-  let a, tired;
+  const b = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}, limBefore = new Set(dayLimits(w, iso));
+  let a, tired, lim;
   S.events = real.filter(x => !drop.has(x.id)).concat(cands.map((c, i) => ({...c, id: "~" + i, week: c.week === null ? null : iso})));
-  try { a = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); }
+  try { a = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); lim = dayLimits(w, iso); }
   finally { S.events = real; }
   const dc = a.campus - b.campus, dg = a.gross - b.gross, bits = [];
   let cls = "impact";
@@ -2073,6 +2104,10 @@ function shiftImpact(cands, drop = new Set()){
     else if(a.campus > cap){ cls += " bad"; bits.push(`${head}, ${dur(a.campus - cap)} over the ${dur(cap)} cap`); }
     else bits.push(`${head}, ${a.campus === cap ? "right at the cap" : dur(cap - a.campus) + " left"}`);
   }
+  else if(capOf(w).scope !== "all" && placeGroup(cands[0].kind) === "campus" && cands.some(c => breakDay(isoOf(addDays(parseISO(iso), c.day)))))
+    bits.push("On a break day, so it doesn't count toward the weekly cap");
+  const newLim = lim.filter(x => !limBefore.has(x));
+  if(newLim.length){ cls += " bad"; bits.push(...newLim); }
   if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
   if(tired.length){ cls += " bad"; bits.push(...tired.map(tiredText)); }
   const mine = real.filter(x => !drop.has(x.id) && x.person === w && (x.week === null
@@ -2408,7 +2443,7 @@ function hoursFor(person, iso, keep = () => true){
                                   : runs.find(x => x.day === r.day - 1 && x.end === 1440 && x.kind === r.kind);
   const after = r => r.day === 6 ? runsOf(1).find(x => x.day === 0 && x.start === 0 && x.kind === r.kind)
                                  : runs.find(x => x.day === r.day + 1 && x.start === 0 && x.kind === r.kind);
-  const allNight = r => r.start <= 120 && r.end > 120;
+  const allNight = r => r.parts.length === 1 && r.start <= 120 && r.end > 120;   // one shift, not an A shift tacked on after
   const runNightOf = r => r.parts.reduce((t, e) => t + Math.max(0, nightMins(e) + clockGain(iso, e)), 0);
   runs.forEach(r => {
     if(r.day > 0 && r.start === 0 && before(r) && by[r.kind]) by[r.kind].shifts--;   // one shift, not two
@@ -2491,7 +2526,8 @@ function renderHours(){
   cards.forEach(({ w, rows, total, last, split }) => {
     const diff = total - last;
     const c = capOf(w), cap = c.h * 60, free = capOff(w, VIEW);
-    const counted = c.scope === "all" ? split.campus + split.off + split.coop : split.campus;
+    const counted = c.scope === "all" ? split.campus + split.off + split.coop : cappedOf(w, VIEW);
+    const brk = c.scope === "all" || free ? [] : breakDaysIn(VIEW), brkMins = brk.length ? split.campus - counted : 0;
     const over = !free && counted > cap;
     const mn = minOf(w), need = mn ? mn.h * 60 : 0, inMin = minWeek(w, VIEW);
     const got = mn ? (rows.find(([k]) => k === mn.k) || [0, {mins:0}])[1].mins : 0;
@@ -2499,7 +2535,8 @@ function renderHours(){
       inMin && got < need
         ? `${placeName(mn.k)} needs ${dur(need)} every week${mn.to ? " through " + parseISO(mn.to).toLocaleDateString(undefined, {day:"numeric", month:"short"}) : ""}. ${
             got ? dur(got) + " scheduled, " : ""}${dur(need - got)} short.` : "",
-      ...tiredMornings(w, VIEW).map(tiredText)
+      ...tiredMornings(w, VIEW).map(tiredText),
+      ...dayLimits(w, VIEW)
     ].filter(Boolean);
     const card = el("div","hcard " + w);
     card.innerHTML =
@@ -2510,7 +2547,9 @@ function renderHours(){
          ${c.h ? `<div class="cap${free ? " open" : ""}"><i style="width:${free ? 100 : Math.min(100, counted / cap * 100)}%"></i></div>` : ""}
          <small>${!c.h ? "Set a weekly cap under Settings → People" : free ? "University break: no cap this week"
            : over ? `${dur(counted - cap)} over the cap`
-           : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}</small></div>
+           : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}${
+           brk.length ? `<br>${brk.map(i => DAYS[i]).join(", ")} ${brk.length === 1 ? "is a break day" : "are break days"}: ${
+             brkMins ? dur(brkMins) + " on them doesn't" : "hours on them don't"} count` : ""}</small></div>
        ${alerts.map(a => `<div class="alert">${escapeHTML(a)}</div>`).join("")}${
          inMin && got >= need ? `<div class="alert ok">${escapeHTML(placeName(mn.k))} ${dur(need)} minimum met this week</div>` : ""}
        <div class="split" style="--cols:${Math.max(shown.length, 1)}">
