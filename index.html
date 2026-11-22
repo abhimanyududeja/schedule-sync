@@ -813,11 +813,11 @@
     <button class="btn ghost" id="addPerson">+ Add a person</button>
   </div>
   <div class="card">
-    <h2>Break days: no on-campus cap</h2>
+    <h2>Break days: 40h a week on campus</h2>
     <p class="hint" style="margin:-4px 0 12px">
       Student visas usually allow more than 20h a week during official university breaks, once your
       international office confirms it. Hours on break days don't count toward the weekly cap; the other
-      days of that week still do. The daily limits (8h in a row, 12h a day) always apply.
+      days of that week still do, and the whole week stays under 40h. The daily limits (8h in a row, 12h a day) always apply.
     </p>
     <div id="breakList"></div>
     <div class="row">
@@ -849,7 +849,7 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026112202;
+const APP_V = 2026112203;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 /* [0,1,2] → "Sun–Tue"; a list with gaps is spelled out, [0,3] → "Sun, Wed". */
@@ -990,6 +990,11 @@ function cappedOf(w, iso){
 }
 const breakDay = d => ((S.pay && S.pay.breaks) || []).some(([a, b]) => d >= a && d <= b);
 const breakDaysIn = iso => [0,1,2,3,4,5,6].filter(i => breakDay(isoOf(addDays(parseISO(iso), i))));
+// a week that is partly break still has a ceiling for the whole week: the
+// class days stay under the usual cap, and everything together stays under 40h
+const WEEK_MAX = 40 * 60;
+const campusWeek = (w, iso) => Object.entries(hoursFor(w, iso)).filter(([k]) => placeGroup(k) === "campus").reduce((t, [, v]) => t + v.mins, 0);
+const partBreak = (w, iso) => !!capOf(w).h && capOf(w).scope !== "all" && !capOff(w, iso) && breakDaysIn(iso).length > 0;
 /* Limits on a single day that a break never lifts: on-campus work at most 8h
    in a row, 12h in a day, and anything over 6h in a row needs a 30-minute unpaid
    break (built into a single 8h shift, so only back-to-back blocks get the note).
@@ -2093,14 +2098,22 @@ function openEdit(e, isNew){
 function shiftImpact(cands, drop = new Set()){
   if(!cands.length || !(cands[0].end > cands[0].start)) return "";
   const w = cands[0].person, iso = cands[0].week || VIEW, real = S.events;
-  const b = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}, limBefore = new Set(dayLimits(w, iso));
+  const pb = partBreak(w, iso);
+  const b = {campus: cappedOf(w, iso), wk: pb ? campusWeek(w, iso) : 0, gross: payFor(w, iso).gross}, limBefore = new Set(dayLimits(w, iso));
   let a, tired, lim;
   S.events = real.filter(x => !drop.has(x.id)).concat(cands.map((c, i) => ({...c, id: "~" + i, week: c.week === null ? null : iso})));
-  try { a = {campus: cappedOf(w, iso), gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); lim = dayLimits(w, iso); }
+  try { a = {campus: cappedOf(w, iso), wk: pb ? campusWeek(w, iso) : 0, gross: payFor(w, iso).gross}; tired = tiredMornings(w, iso); lim = dayLimits(w, iso); }
   finally { S.events = real; }
   const dc = a.campus - b.campus, dg = a.gross - b.gross, bits = [];
   let cls = "impact";
-  if(dc){
+  if(pb && (dc || a.wk !== b.wk)){
+    const cap = capOf(w).h * 60, d = a.wk - b.wk;
+    const cls1 = dc ? `class days ${dur(a.campus)} of ${dur(cap)}${a.campus > cap ? ", " + dur(a.campus - cap) + " over" : ""}` : "on a break day";
+    if(a.campus > cap || a.wk > WEEK_MAX) cls += " bad";
+    bits.push(`${d >= 0 ? "+" : "−"}${dur(Math.abs(d))} on campus → ${cls1} · week ${dur(a.wk)} of ${dur(WEEK_MAX)}${
+      a.wk > WEEK_MAX ? ", " + dur(a.wk - WEEK_MAX) + " over" : ""}`);
+  }
+  else if(dc){
     const sign = dc > 0 ? "+" : "−";
     const c = capOf(w), cap = c.h * 60, where = capWhere(c), head = `${sign}${dur(Math.abs(dc))} → ${dur(a.campus)} ${where}`;
     if(!c.h) bits.push(head);
@@ -2109,7 +2122,7 @@ function shiftImpact(cands, drop = new Set()){
     else bits.push(`${head}, ${a.campus === cap ? "right at the cap" : dur(cap - a.campus) + " left"}`);
   }
   else if(capOf(w).scope !== "all" && placeGroup(cands[0].kind) === "campus" && cands.some(c => breakDay(isoOf(addDays(parseISO(iso), c.day)))))
-    bits.push("On a break day, so it doesn't count toward the weekly cap");
+    bits.push("On a break day, so it doesn't count toward the class-day cap");
   const newLim = lim.filter(x => !limBefore.has(x));
   if(newLim.length){ cls += " bad"; bits.push(...newLim); }
   if(Math.abs(dg) >= 0.01) bits.push(`${dg > 0 ? "+" : "−"}${money(Math.abs(dg))} before tax`);
@@ -2532,7 +2545,7 @@ function renderHours(){
     const c = capOf(w), cap = c.h * 60, free = capOff(w, VIEW);
     const counted = c.scope === "all" ? split.campus + split.off + split.coop : cappedOf(w, VIEW);
     const brk = c.scope === "all" || free ? [] : breakDaysIn(VIEW), brkMins = brk.length ? split.campus - counted : 0;
-    const over = !free && counted > cap;
+    const over = !free && (counted > cap || (brk.length > 0 && split.campus > WEEK_MAX));
     const mn = minOf(w), need = mn ? mn.h * 60 : 0, inMin = minWeek(w, VIEW);
     const got = mn ? (rows.find(([k]) => k === mn.k) || [0, {mins:0}])[1].mins : 0;
     const alerts = [
@@ -2547,12 +2560,13 @@ function renderHours(){
       `<h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}<span class="hsub">${weekDates(VIEW)}</span></h3>
        <div class="tot${over ? " over" : ""}">
          <span class="totlbl">${c.scope === "all" ? "All work" : "On campus"}</span>
-         ${brk.length ? dur(split.campus) : dur(counted)}<span class="est">${!c.h ? "no cap set" : free ? "break week" : brk.length ? "in total" : "of " + dur(cap)}</span>
-         ${c.h ? `<div class="cap${free ? " open" : ""}"><i style="width:${free ? 100 : Math.min(100, counted / cap * 100)}%"></i></div>` : ""}
+         ${brk.length ? dur(split.campus) : dur(counted)}<span class="est">${!c.h ? "no cap set" : free ? "break week" : "of " + dur(brk.length ? WEEK_MAX : cap)}</span>
+         ${c.h ? `<div class="cap${free ? " open" : ""}"><i style="width:${free ? 100 : Math.min(100, (brk.length ? split.campus / WEEK_MAX : counted / cap) * 100)}%"></i></div>` : ""}
          <small>${!c.h ? "Set a weekly cap under Settings → People" : free ? "University break: no cap this week"
-           : brk.length ? `<b>${dayRun(DAYS.map((_, i) => i).filter(i => !brk.includes(i)))}</b>, class days: ${dur(counted)} of the ${dur(cap)} cap · ${
-               over ? dur(counted - cap) + " over" : counted === cap ? "right at it" : dur(cap - counted) + " left"}<br><b>${dayRun(brk)}</b>, break days: ${
-               dur(brkMins)} · no weekly cap, just ${DAY_MAX / 60}h a day at most`
+           : brk.length ? `<b>${dayRun(DAYS.map((_, i) => i).filter(i => !brk.includes(i)))}</b>, class days: ${dur(counted)} of ${dur(cap)} · ${
+               counted > cap ? dur(counted - cap) + " over" : counted === cap ? "full" : dur(cap - counted) + " left"}<br><b>${dayRun(brk)}</b>, break days: ${
+               dur(brkMins)} · no ${dur(cap)} limit, ${DAY_MAX / 60}h a day at most<br><b>Whole week</b>: ${
+               split.campus > WEEK_MAX ? dur(split.campus - WEEK_MAX) + " over" : dur(WEEK_MAX - split.campus) + " left"} of ${dur(WEEK_MAX)}`
            : over ? `${dur(counted - cap)} over the cap`
            : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}</small></div>
        ${alerts.map(a => `<div class="alert">${escapeHTML(a)}</div>`).join("")}${
@@ -2575,12 +2589,15 @@ function renderHours(){
        : `<div class="none">No shifts this week.</div>`);
     host.appendChild(card);
   });
-  const over = people().map(w => ({who:nameOf(w), mins:cappedOf(w, VIEW), c:capOf(w), free:capOff(w, VIEW)}))
-    .filter(x => !x.free && x.mins > x.c.h * 60);
+  const over = people().flatMap(w => {
+    const c = capOf(w), m = cappedOf(w, VIEW), wk = partBreak(w, VIEW) ? campusWeek(w, VIEW) : 0;
+    return capOff(w, VIEW) ? [] : [m > c.h * 60 && {who:nameOf(w), mins:m, c, lbl:partBreak(w, VIEW) ? "on class days" : capWhere(c), cap:c.h * 60},
+      wk > WEEK_MAX && {who:nameOf(w), mins:wk, c, lbl:"on campus this week", cap:WEEK_MAX}].filter(Boolean);
+  });
   $("#hoursNote").className = over.length ? "note warn" : "note";
   $("#hoursNote").innerHTML =
     (over.length ? `<b>Over their weekly cap:</b> ` +
-       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)} ${capWhere(o.c)} (cap ${dur(o.c.h * 60)})`).join(", ") + `. ` : "") +
+       over.map(o => `${escapeHTML(o.who)} at ${dur(o.mins)} ${o.lbl} (cap ${dur(o.cap)})`).join(", ") + `. ` : "") +
     `<b>${weekTitle(VIEW)}</b> · ${weekDates(VIEW)}. ${grand ? dur(grand) : "0h"} worked between you. ` +
     `Use the ‹ › arrows at the top to check another week.`;
 }
