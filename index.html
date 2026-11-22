@@ -198,6 +198,7 @@
   .hcard h3 .hsub{margin-left:auto;font-size:12px;font-weight:500;color:var(--faint);letter-spacing:0}
   .hcard .tot{font-size:34px;font-weight:700;letter-spacing:-1px;margin-bottom:16px;line-height:1.05;
     font-variant-numeric:tabular-nums}
+  .hcard .tot small b{color:var(--text,inherit);font-weight:600}
   .hcard .tot small{display:block;font-size:12px;font-weight:450;color:var(--dim);letter-spacing:0;margin-top:6px;line-height:1.4}
   .hcard .tot .totlbl{display:block;font-size:10.5px;font-weight:650;letter-spacing:.08em;
     text-transform:uppercase;color:var(--faint);margin-bottom:6px}
@@ -848,9 +849,12 @@ const KEY = "schedsync-v3", OLDKEY = "schedsync-v2", OLDKEY1 = "schedsync-v1";
 /* Which copy of the app this is. Bump it with every release. Each push stamps
    it on the shared calendar, and a tab still running an older copy reloads
    itself instead of syncing, so it can never write data back in an older shape. */
-const APP_V = 2026112201;
+const APP_V = 2026112202;
 /* Weeks run Sunday → Saturday, so a day index is exactly JS getDay(). */
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+/* [0,1,2] → "Sun–Tue"; a list with gaps is spelled out, [0,3] → "Sun, Wed". */
+const dayRun = ix => !ix.length ? "" : ix.every((d, i) => !i || d === ix[i-1] + 1) && ix.length > 2
+  ? DAYS[ix[0]] + "–" + DAYS[ix[ix.length-1]] : ix.map(i => DAYS[i]).join(", ");
 const DAYBTN = ["Su","M","Tu","W","Th","F","Sa"];
 const WEEKDAYS = [1,2,3,4,5];
 /* Pixels per minute: recomputed each render to fit the day, and shared so
@@ -2543,13 +2547,14 @@ function renderHours(){
       `<h3><span class="dot ${w}"></span>${escapeHTML(nameOf(w))}<span class="hsub">${weekDates(VIEW)}</span></h3>
        <div class="tot${over ? " over" : ""}">
          <span class="totlbl">${c.scope === "all" ? "All work" : "On campus"}</span>
-         ${dur(counted)}<span class="est">${!c.h ? "no cap set" : free ? "break week" : "of " + dur(cap)}</span>
+         ${brk.length ? dur(split.campus) : dur(counted)}<span class="est">${!c.h ? "no cap set" : free ? "break week" : brk.length ? "in total" : "of " + dur(cap)}</span>
          ${c.h ? `<div class="cap${free ? " open" : ""}"><i style="width:${free ? 100 : Math.min(100, counted / cap * 100)}%"></i></div>` : ""}
          <small>${!c.h ? "Set a weekly cap under Settings → People" : free ? "University break: no cap this week"
+           : brk.length ? `<b>${dayRun(DAYS.map((_, i) => i).filter(i => !brk.includes(i)))}</b>, class days: ${dur(counted)} of the ${dur(cap)} cap · ${
+               over ? dur(counted - cap) + " over" : counted === cap ? "right at it" : dur(cap - counted) + " left"}<br><b>${dayRun(brk)}</b>, break days: ${
+               dur(brkMins)} · no weekly cap, just ${DAY_MAX / 60}h a day at most`
            : over ? `${dur(counted - cap)} over the cap`
-           : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}${
-           brk.length ? `<br>${brk.map(i => DAYS[i]).join(", ")} ${brk.length === 1 ? "is a break day" : "are break days"}: ${
-             brkMins ? dur(brkMins) + " on them doesn't" : "hours on them don't"} count` : ""}</small></div>
+           : counted === cap ? "Right at the cap" : `${dur(cap - counted)} left this week`}</small></div>
        ${alerts.map(a => `<div class="alert">${escapeHTML(a)}</div>`).join("")}${
          inMin && got >= need ? `<div class="alert ok">${escapeHTML(placeName(mn.k))} ${dur(need)} minimum met this week</div>` : ""}
        <div class="split" style="--cols:${Math.max(shown.length, 1)}">
